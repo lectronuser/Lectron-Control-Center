@@ -8,8 +8,10 @@ import 'package:path_provider/path_provider.dart';
 import 'board/board_data.dart';
 import 'core/app_storage.dart';
 import 'core/board_controller.dart';
+import 'core/param_meta.dart';
 import 'core/transport.dart';
 import 'report/report_pdf.dart';
+import 'ui/map_tiles.dart';
 import 'ui/shell.dart';
 import 'ui/theme.dart';
 
@@ -23,31 +25,39 @@ Future<void> main() async {
     dataDir = null;
   }
   final storage = AppStorage(dataDir)..load();
+  if (dataDir != null) tileCacheDir = Directory('${dataDir.path}${Platform.pathSeparator}tiles');
   storage.log('INFO', '---- $appName started ----');
-  final controller = BoardController(factory: DeviceTransportFactory(), storage: storage, writeReport: writeReportFile);
+  final controller = BoardController(
+    factory: DeviceTransportFactory(),
+    storage: storage,
+    writeReport: writeReportFile,
+    metaStore: ParamMetaStore(dataDir == null ? null : Directory('${dataDir.path}${Platform.pathSeparator}cache')),
+  );
 
   // an internal error is logged once and shown in the status bar instead of taking the app down
   void report(Object error, StackTrace? stack) => Timer.run(() => controller.logException(error, stack));
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
+    // a map tile that cannot load offline is not an app error
+    if (details.library == 'image resource service') return;
     report(details.exception, details.stack);
   };
   PlatformDispatcher.instance.onError = (error, stack) {
     report(error, stack);
     return true;
   };
-  runApp(BoardTestApp(controller: controller));
+  runApp(LectronControlCenterApp(controller: controller));
 }
 
-class BoardTestApp extends StatefulWidget {
-  const BoardTestApp({super.key, required this.controller});
+class LectronControlCenterApp extends StatefulWidget {
+  const LectronControlCenterApp({super.key, required this.controller});
   final BoardController controller;
 
   @override
-  State<BoardTestApp> createState() => _BoardTestAppState();
+  State<LectronControlCenterApp> createState() => _LectronControlCenterAppState();
 }
 
-class _BoardTestAppState extends State<BoardTestApp> {
+class _LectronControlCenterAppState extends State<LectronControlCenterApp> {
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(
     onExitRequested: () async {
       await widget.controller.shutdown();
@@ -70,7 +80,7 @@ class _BoardTestAppState extends State<BoardTestApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '$appName - $boardName',
+      title: productName,
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
       home: Shell(controller: widget.controller),

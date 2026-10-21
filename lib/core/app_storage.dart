@@ -46,6 +46,11 @@ class AppStorage {
     return value is int ? value : null;
   }
 
+  bool? getBool(String key) {
+    final value = _settings[key];
+    return value is bool ? value : null;
+  }
+
   void put(String key, Object? value) {
     if (_settings[key] == value) return;
     _settings[key] = value;

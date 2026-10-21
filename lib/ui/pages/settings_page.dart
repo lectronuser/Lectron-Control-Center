@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../board/board_data.dart';
 import '../../core/board_controller.dart';
 import '../shell.dart';
+import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -15,8 +16,8 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final cards = [_networkCard(), _portCard()];
     return PageFrame(
-      title: 'Settings',
-      subtitle: 'Ethernet and serial ports; every other parameter is on the Params page',
+      title: tr('Settings'),
+      subtitle: tr('Ethernet and serial ports; every other parameter is on the Params page'),
       actions: [
         Muted(c.paramSummary),
         LinkButton(c, 'Read Parameters', c.startParamFetch, icon: Icons.refresh),
@@ -24,21 +25,21 @@ class SettingsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(bottom: 10),
-            child: Text('Ethernet', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            child: Text(tr('Ethernet'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ),
           LayoutBuilder(
             builder: (context, box) {
               if (box.maxWidth < 860) {
-                return Column(children: [cards[0], const SizedBox(height: 16), cards[1]]);
+                return Column(children: [cards[0], SizedBox(height: 16), cards[1]]);
               }
               return IntrinsicHeight(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(child: cards[0]),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16),
                     Expanded(child: cards[1]),
                   ],
                 ),
@@ -52,21 +53,21 @@ class SettingsPage extends StatelessWidget {
               LinkButton(c, 'Apply & Reboot', c.applyNetwork, primary: true),
             ],
           ),
-          const SectionTitle('Ports'),
+          SectionTitle(tr('Ports')),
           AppCard(
-            title: 'Serial Ports',
+            title: tr('Serial Ports'),
             badge: 'SERIAL / TELEM',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SimpleTable(
                   rowHeight: 44,
-                  columns: const [
-                    Col('Serial', flex: 2),
-                    Col('Connector', flex: 3),
-                    Col('UART', flex: 2),
-                    Col('Protocol', width: 270),
-                    Col('Baud', width: 150),
+                  columns: [
+                    Col(tr('Serial'), flex: 2),
+                    Col(tr('Connector'), flex: 3),
+                    Col(tr('UART'), flex: 2),
+                    Col(tr('Protocol'), width: 270),
+                    Col(tr('Baud'), width: 150),
                   ],
                   rows: [
                     for (final e in serialPorts.entries)
@@ -90,7 +91,7 @@ class SettingsPage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                const Muted('USART6 is the internal FMU <-> IO co-processor link and is not a SERIAL port.'),
+                Muted(tr('USART6 is the internal FMU <-> IO co-processor link and is not a SERIAL port.')),
               ],
             ),
           ),
@@ -111,25 +112,25 @@ class SettingsPage extends StatelessWidget {
     Widget address(String value, String hint, ValueChanged<String> set) =>
         SyncedField(value: value, reloadKey: c.formVersion, hint: hint, enabled: static, onChanged: set);
     return AppCard(
-      title: 'Network',
+      title: tr('Network'),
       badge: 'Ethernet',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CheckRow('Enable networking', c.netEnable, (v) => c.edit(() => c.netEnable = v)),
-          CheckRow('Use DHCP', c.netDhcp, (v) => c.edit(() => c.netDhcp = v)),
+          CheckRow(tr('Enable networking'), c.netEnable, (v) => c.edit(() => c.netEnable = v)),
+          CheckRow(tr('Use DHCP'), c.netDhcp, (v) => c.edit(() => c.netDhcp = v)),
           const SizedBox(height: 4),
-          FormRow('IP address', address(c.netIp, '192.168.144.14', (t) => c.netIp = t)),
-          FormRow('Netmask', address(c.netMask, '255.255.255.0', (t) => c.netMask = t)),
-          FormRow('Gateway', address(c.netGw, '192.168.144.1', (t) => c.netGw = t)),
-          FormRow('MAC address', SelectableText(c.netMac, style: monoStyle)),
+          FormRow(tr('IP address'), address(c.netIp, '192.168.144.14', (t) => c.netIp = t)),
+          FormRow(tr('Netmask'), address(c.netMask, '255.255.255.0', (t) => c.netMask = t)),
+          FormRow(tr('Gateway'), address(c.netGw, '192.168.144.1', (t) => c.netGw = t)),
+          FormRow(tr('MAC address'), SelectableText(c.netMac, style: monoStyle)),
         ],
       ),
     );
   }
 
   Widget _portCard() => AppCard(
-    title: 'Network Port 1',
+    title: tr('Network Port 1'),
     badge: 'MAVLink',
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

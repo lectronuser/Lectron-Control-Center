@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../shell.dart';
+import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -13,23 +14,23 @@ class LivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rows = c.connected ? c.liveRows() : const <LiveRow>[];
+    final rows = c.connected ? c.liveRows() : <LiveRow>[];
     return PageFrame(
-      title: 'Live Data',
-      subtitle: 'Sensors, GPS, attitude and power from the board',
+      title: tr('Live Data'),
+      subtitle: tr('Sensors, GPS, attitude and power from the board'),
       actions: [
         Muted(c.paramSummary),
         LinkButton(c, 'Reload IDs', c.startParamFetch, icon: Icons.refresh),
       ],
       child: AppCard(
-        title: 'Live Data',
+        title: tr('Live Data'),
         child: SimpleTable(
-          columns: const [
-            Col('Item', flex: 3),
-            Col('Chip', flex: 3),
-            Col('Bus', flex: 2),
-            Col('Address / Port', flex: 3),
-            Col('Value', flex: 6),
+          columns: [
+            Col(tr('Item'), flex: 3),
+            Col(tr('Chip'), flex: 3),
+            Col(tr('Bus'), flex: 2),
+            Col(tr('Address / Port'), flex: 3),
+            Col(tr('Value'), flex: 6),
           ],
           empty: c.connected ? 'Waiting for data' : 'Connect a board to see its sensors',
           rows: [

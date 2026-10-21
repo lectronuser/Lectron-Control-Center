@@ -138,7 +138,9 @@ extension _Messages on BoardController {
     final first = target == null;
     target = (m.sysId, m.compId);
     autopilot = ap;
+    heartbeatType = m.i('type');
     lastHeartbeat = mono();
+    final wasArmed = hb?.armed ?? false;
     hb = Heartbeat(
       autopilotNames[ap] ?? mavEnumName(mavAutopilotNames, ap),
       mavEnumName(mavTypeNames, m.i('type')),
@@ -149,6 +151,14 @@ extension _Messages on BoardController {
     if (first) {
       if (job == null) notify('Board found: system ${m.sysId}, ${hb!.autopilot}');
       _onBoardFound();
+    }
+    final pos = position;
+    if (!first && !wasArmed && hb!.armed && pos != null) {
+      final zone = zones.restrictedAt(pos.$1, pos.$2);
+      if (zone != null) {
+        addLog(Mav.severityWarning, 'Armed inside a no-fly zone: ${zone.name}');
+        notify('WARNING: armed inside a no-fly zone (${zone.name})', sticky: true);
+      }
     }
   }
 
@@ -182,6 +192,9 @@ extension _Messages on BoardController {
       version['frame'] = text.substring(6).trim();
     }
     if (text.toUpperCase().contains('IOMCU')) iomcuMsg = (severity, text);
+    _notePrearm(text);
+    final lower = text.toLowerCase();
+    if (lower.contains('reboot required') || lower.contains('reboot to apply')) rebootRequired = true;
     addLog(severity, text);
     if (severity <= Mav.severityWarning) {
       final now = DateTime.now();
@@ -222,6 +235,7 @@ extension _Messages on BoardController {
       value = m.d('param_value');
     }
     params[name] = value;
+    pendingWrites.remove(name);
     paramTypes[name] = type;
     // a written value that the board now reports ends the edit
     final edit = paramEdits[name];

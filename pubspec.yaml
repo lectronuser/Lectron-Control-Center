@@ -1,5 +1,5 @@
 name: lectron_control
-description: "Board test, configuration and PDF test report for the Lectron Pi5-H7 flight controller."
+description: "Setup, calibration, tuning, logs and board test for ArduPilot and PX4 flight controllers, with the Lectron Pi5-H7 board test and PDF report."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -38,6 +38,9 @@ dependencies:
   pdf: ^3.13.1
   file_selector: ^1.1.0
   path_provider: ^2.1.6
+  archive: ^4.5.2
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:

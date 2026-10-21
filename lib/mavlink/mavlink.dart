@@ -61,7 +61,19 @@ abstract final class Mav {
   static const int modeFlagCustomModeEnabled = 1;
   static const int dataStreamAll = 0;
 
+  static const int cmdDoSetMode = 176;
+  static const int cmdDoSetHome = 179;
+  static const int cmdPreflightCalibration = 241;
+  static const int cmdFixedMagCalYaw = 42006;
+  static const int cmdDoStartMagCal = 42424;
+  static const int cmdDoAcceptMagCal = 42425;
+  static const int cmdDoCancelMagCal = 42426;
+  static const int cmdAccelcalVehiclePos = 42429;
+  static const int accelcalSuccess = 16777215;
+  static const int accelcalFailed = 16777216;
   static const int cmdDoMotorTest = 209;
+  static const int cmdComponentArmDisarm = 400;
+  static const int cmdRunPrearmChecks = 401;
   static const int cmdPreflightStorage = 245;
   static const int cmdPreflightRebootShutdown = 246;
   static const int cmdSetMessageInterval = 511;
@@ -81,6 +93,7 @@ abstract final class Mav {
   static const int sensorLaserPosition = 256;
   static const int sensorRcReceiver = 65536;
   static const int sensorLogging = 16777216;
+  static const int sensorPrearmCheck = 268435456;
 
   static const int powerBrickValid = 1;
   static const int powerServoValid = 2;
@@ -270,29 +283,14 @@ class MavEncoder {
         }
         return;
       }
-      final v = value as num;
-      switch (f.type) {
-        case MavType.c:
-        case MavType.u8:
-          payload.setUint8(f.offset, v.toInt());
-        case MavType.i8:
-          payload.setInt8(f.offset, v.toInt());
-        case MavType.i16:
-          payload.setInt16(f.offset, v.toInt(), Endian.little);
-        case MavType.u16:
-          payload.setUint16(f.offset, v.toInt(), Endian.little);
-        case MavType.i32:
-          payload.setInt32(f.offset, v.toInt(), Endian.little);
-        case MavType.u32:
-          payload.setUint32(f.offset, v.toInt(), Endian.little);
-        case MavType.f32:
-          payload.setFloat32(f.offset, v.toDouble(), Endian.little);
-        case MavType.i64:
-        case MavType.u64:
-          payload.setInt64(f.offset, v.toInt(), Endian.little);
-        case MavType.f64:
-          payload.setFloat64(f.offset, v.toDouble(), Endian.little);
+      if (value is List) {
+        // array field, e.g. FILE_TRANSFER_PROTOCOL.payload
+        for (var k = 0; k < value.length && k < f.count; k++) {
+          _put(payload, f.type, f.offset + k * f.type.size, value[k] as num);
+        }
+        return;
       }
+      _put(payload, f.type, f.offset, value as num);
     });
     var len = def.length;
     while (len > 1 && payload.getUint8(len - 1) == 0) {
@@ -313,6 +311,31 @@ class MavEncoder {
     frame[11 + len] = crc >> 8;
     _seq = (_seq + 1) & 0xFF;
     return frame;
+  }
+
+  static void _put(ByteData payload, MavType type, int offset, num v) {
+    switch (type) {
+      case MavType.c:
+      case MavType.u8:
+        payload.setUint8(offset, v.toInt());
+      case MavType.i8:
+        payload.setInt8(offset, v.toInt());
+      case MavType.i16:
+        payload.setInt16(offset, v.toInt(), Endian.little);
+      case MavType.u16:
+        payload.setUint16(offset, v.toInt(), Endian.little);
+      case MavType.i32:
+        payload.setInt32(offset, v.toInt(), Endian.little);
+      case MavType.u32:
+        payload.setUint32(offset, v.toInt(), Endian.little);
+      case MavType.f32:
+        payload.setFloat32(offset, v.toDouble(), Endian.little);
+      case MavType.i64:
+      case MavType.u64:
+        payload.setInt64(offset, v.toInt(), Endian.little);
+      case MavType.f64:
+        payload.setFloat64(offset, v.toDouble(), Endian.little);
+    }
   }
 
   /// Integer parameter value carried bytewise in the float field (PX4).

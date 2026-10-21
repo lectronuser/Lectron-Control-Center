@@ -7,15 +7,23 @@ import '../board/board_data.dart';
 import '../mavlink/mavlink.dart';
 import '../report/report_data.dart';
 import 'app_storage.dart';
+import 'firmware.dart';
 import 'models.dart';
+import 'param_meta.dart';
 import 'transport.dart';
 import 'udp_probe.dart';
+import 'zones.dart';
 
+part 'controller_checks.dart';
+part 'controller_firmware.dart';
 part 'controller_messages.dart';
 part 'controller_report.dart';
 part 'controller_settings.dart';
+part 'controller_setup.dart';
 part 'controller_tests.dart';
+part 'controller_vehicle.dart';
 part 'controller_views.dart';
+part 'frames.g.dart';
 
 const int tickMs = 250;
 const double staleS = 2.0;
@@ -35,8 +43,38 @@ const double testTimeoutS = 25.0; // time a port test waits for data after the r
 const double paramListIdleS = 1.5; // full parameter download: re-request missing indices after this pause
 const int paramListTries = 5;
 const int paramListBatch = 40; // missing parameters re-requested per round
+const int outboxMax = 2000; // frames waiting for a slow link
 
-enum AppPage { board, test, motors, settings, params, live, messages }
+enum AppPage {
+  // vehicle
+  overview,
+  map,
+  messages,
+  firmware,
+  // setup
+  wizard,
+  calibration,
+  receiver,
+  safety,
+  outputs,
+  ports,
+  peripherals,
+  recipes,
+  osd,
+  // advanced
+  params,
+  logs,
+  files,
+  simulation,
+  // Lectron Pi5-H7 board test
+  board,
+  test,
+  motors,
+  settings,
+  live,
+  // app
+  app,
+}
 
 typedef ReportWriter = Future<void> Function(String path, ReportData data);
 
@@ -53,7 +91,7 @@ String _errorText(Object error) {
 /// The link to the board and everything the pages show: MAVLink state, parameters, the reboot / reconnect
 /// job, the settings forms, the port tests and the report.
 class BoardController extends ChangeNotifier {
-  BoardController({required this.factory, required this.storage, required this.writeReport}) {
+  BoardController({required this.factory, required this.storage, required this.writeReport, this.metaStore}) {
     for (final spec in portTests) {
       tests[spec.key] = TestState();
     }
@@ -61,7 +99,19 @@ class BoardController extends ChangeNotifier {
     _preferredPort = selectedPort = storage.getString('port');
     final baud = storage.getInt('baud');
     selectedBaud = baud != null && baudRates.contains(baud) ? baud : defaultBaud;
+    language = storage.getString('language') ?? 'en';
+    autoConnect = storage.getBool('autoConnect') ?? true;
+    dockOpen = storage.getBool('dock') ?? false;
+    for (final key in (storage.getString('pins') ?? '').split('\n')) {
+      if (key.trim().isNotEmpty) watchPins.add(WatchPin(key.trim()));
+    }
+    for (final line in (storage.getString('recent') ?? '').split('\n')) {
+      final parts = line.split('|');
+      final baud = parts.length == 2 ? int.tryParse(parts[1]) : null;
+      if (baud != null) recentLinks.add(RecentLink(parts[0], baud));
+    }
     _applyTelem3Fitted();
+    messageListeners.add(_setupMessage);
     _ticker = Timer.periodic(const Duration(milliseconds: tickMs), (_) => _tick());
     refreshPorts();
   }
@@ -69,6 +119,9 @@ class BoardController extends ChangeNotifier {
   final TransportFactory factory;
   final AppStorage storage;
   final ReportWriter writeReport;
+
+  /// Parameter documentation; null in tests that run offline.
+  final ParamMetaStore? metaStore;
 
   // ---- link ---------------------------------------------------------------------------------
 
@@ -99,7 +152,37 @@ class BoardController extends ChangeNotifier {
   int? portBaud;
 
   bool get connected => _conn != null;
-  AppPage page = AppPage.board;
+  AppPage page = AppPage.overview;
+
+  // ---- app-wide state (logic in controller_vehicle.dart) ----------------------------------------
+
+  String language = 'en';
+  bool autoConnect = true;
+  bool dockOpen = false;
+  final List<RecentLink> recentLinks = [];
+  final List<WatchPin> watchPins = [];
+  final Set<String> _seenPorts = {};
+
+  /// Port that dropped out while connected; auto-connect opens it again when it returns.
+  String? _lostPort;
+
+  /// Called with every message from the vehicle; used by the calibrations, missions, FTP and logs.
+  final List<void Function(MavMessage)> messageListeners = [];
+
+  /// Run on exit, e.g. to stop a simulator started from the app.
+  final List<Future<void> Function()> shutdownHooks = [];
+
+  // ---- setup (logic in controller_setup.dart) ------------------------------------------------------
+
+  final CalState cal = CalState();
+  final FlashState flash = FlashState();
+  final RadioCalState radio = RadioCalState();
+  final MotorIdentState ident = MotorIdentState();
+
+  /// Switch being learned by flipping it, the PWM before it moved, and who wants the channel.
+  String? switchLearn;
+  Map<int, int>? switchBaseline;
+  void Function(int channel)? _switchLearned;
 
   Job? job;
   String notice = 'Select a port and connect';
@@ -115,10 +198,36 @@ class BoardController extends ChangeNotifier {
 
   (int sys, int comp)? target;
   int? autopilot;
+  int? heartbeatType;
+  final Map<String, MsgStat> msgStats = {};
+
+  /// Latest GLOBAL_POSITION_INT (lat, lon, relative alt m, heading deg), the trail and home (lat, lon, alt AMSL).
+  (double, double, double, double?)? position;
+  final List<(double, double)> track = [];
+  double _lastTrackT = 0;
+  (double, double, double)? home;
+
+  /// Flight-restriction zones; arming inside a no-fly one gives a warning.
+  late final ZoneStore zones = ZoneStore(storage);
+  final Map<String, double> prearmIssues = {};
+  final Set<String> dismissedIssues = {};
+  bool rebootRequired = false;
+
+  /// Parameters written in this power-up, for the "changed since boot" hints.
+  final Set<String> changedSinceBoot = {};
+  Map<String, num> bootParams = {};
+  Map<String, ParamMeta>? paramMeta;
+  String? paramMetaSet;
+  String paramMetaStatus = '';
   double lastHeartbeat = 0;
   Heartbeat? hb;
   Map<String, String> version = {};
   Map<String, num> params = {};
+
+  /// Parameters written but not yet confirmed by a PARAM_VALUE.
+  final Set<String> pendingWrites = {};
+
+  bool _haveParam(String name) => params.containsKey(name) && !pendingWrites.contains(name);
   Map<String, int> paramTypes = {};
   List<String> paramNames = [];
   int _paramTries = 0;
@@ -152,10 +261,20 @@ class BoardController extends ChangeNotifier {
   void _resetState() {
     target = null;
     autopilot = null;
+    heartbeatType = null;
+    msgStats.clear();
+    position = null;
+    track.clear();
+    home = null;
+    prearmIssues.clear();
+    rebootRequired = false;
+    changedSinceBoot.clear();
+    bootParams = {};
     lastHeartbeat = 0;
     hb = null;
     version = {};
     params = {};
+    pendingWrites.clear();
     paramTypes = {};
     paramNames = [];
     _paramTries = 0;
@@ -186,6 +305,14 @@ class BoardController extends ChangeNotifier {
     paramEdits.clear();
     netIp = netMask = netGw = netP1Ip = '';
     netMac = '-';
+    cal
+      ..kind = null
+      ..phase = CalPhase.idle
+      ..message = '';
+    radio.phase = RadioPhase.idle;
+    ident.phase = IdentPhase.idle;
+    switchLearn = null;
+    _switchLearned = null;
     formVersion++;
   }
 
@@ -293,8 +420,11 @@ class BoardController extends ChangeNotifier {
   }
 
   Future<void> toggleConnection() async {
+    // the flash owns the serial port until it is done
+    if (flash.running) return;
     if (connected) {
       cancelJob('Cancelled by disconnect');
+      _lostPort = null;
       _disconnectBoard();
       return;
     }
@@ -369,6 +499,8 @@ class BoardController extends ChangeNotifier {
   }
 
   void _connectionError(String text) {
+    final device = portDevice ?? 'udp:';
+    if (this.job == null && !device.startsWith('udp:') && !device.startsWith('tcp:')) _lostPort = device;
     _disconnectBoard();
     final job = this.job;
     if (job == null) {
@@ -387,6 +519,8 @@ class BoardController extends ChangeNotifier {
     for (final msg in _parser.add(chunk)) {
       try {
         _handleMessage(msg);
+        final target = this.target;
+        if (target != null && msg.sysId == target.$1) _recordMessage(msg);
       } catch (e, stack) {
         logException(e, stack);
       }
@@ -400,6 +534,7 @@ class BoardController extends ChangeNotifier {
       _write(frame);
     } else {
       _outbox.add(frame);
+      if (_outbox.length > outboxMax) _outbox.removeRange(0, _outbox.length - outboxMax);
     }
   }
 
@@ -417,7 +552,8 @@ class BoardController extends ChangeNotifier {
   /// Gives the link what it can carry in one tick and sends the frames that were waiting.
   void _drainOutbox() {
     final baud = portBaud ?? defaultBaud;
-    final serial = !(portDevice?.startsWith('udp:') ?? false);
+    final device = portDevice ?? '';
+    final serial = !device.startsWith('udp:') && !device.startsWith('tcp:');
     // 10 bits per byte, 80 % of the line; never less than one long frame
     _sendBudget = serial ? math.max(300, baud * tickMs ~/ 12500) : 1 << 20;
     while (_conn != null && _outbox.isNotEmpty && _sendBudget >= _outbox.first.length) {
@@ -452,7 +588,11 @@ class BoardController extends ChangeNotifier {
       'start_stop': 1,
     });
     sendCommand(Mav.cmdRequestMessage, [MavId.autopilotVersion]);
+    sendCommand(Mav.cmdRequestMessage, [MavId.homePosition]);
     if (isArdupilot) sendCommand(Mav.cmdDoSendBanner);
+    final device = portDevice;
+    if (device != null && portBaud != null) _rememberLink(device, portBaud!);
+    _loadParamMeta();
     startParamFetch();
     if (job?.stage == JobStage.heartbeat) _finishJob();
   }
@@ -470,7 +610,7 @@ class BoardController extends ChangeNotifier {
         if (_tickCount % (1000 ~/ tickMs) == 0) _sendHeartbeat();
         final retryAt = _paramRetryAt;
         if (retryAt != null) {
-          if (paramNames.every(params.containsKey)) {
+          if (paramNames.every(_haveParam)) {
             _paramRetryAt = null;
           } else if (now >= retryAt) {
             _requestMissingParams();
@@ -478,11 +618,15 @@ class BoardController extends ChangeNotifier {
         }
         _fullLoadTick(now);
         _loadForms();
+        _samplePinnedParams();
+        _radioTick();
+        _switchTick();
         _changed();
       } else {
         if (now >= _nextPortScan) {
           _nextPortScan = now + portScanS;
           refreshPorts();
+          if (job == null) _autoConnectTick(ports);
         }
         if (job != null) _changed();
       }
@@ -509,7 +653,7 @@ class BoardController extends ChangeNotifier {
     if (job == null) return;
     switch (job.stage) {
       case JobStage.writing:
-        final missing = job.names.where((n) => !params.containsKey(n)).toList()..sort();
+        final missing = job.names.where((n) => !_haveParam(n)).toList()..sort();
         if (missing.isEmpty || now > job.deadline) {
           if (missing.isNotEmpty) {
             addLog(Mav.severityWarning, 'Not confirmed before reboot: ${missing.join(', ')}');
@@ -564,6 +708,7 @@ class BoardController extends ChangeNotifier {
   void _finishJob() {
     final job = this.job!;
     this.job = null;
+    rebootRequired = false;
     notify('${job.title}: done, board reconnected');
     addLog(Mav.severityInfo, '${job.title}: rebooted and reconnected');
     job.onReady?.call();
@@ -613,7 +758,7 @@ class BoardController extends ChangeNotifier {
 
   void _requestMissingParams() {
     final target = this.target;
-    final missing = paramNames.where((n) => !params.containsKey(n)).toList();
+    final missing = paramNames.where((n) => !_haveParam(n)).toList();
     if (missing.isEmpty || _paramTries >= paramMaxTries || target == null) {
       _paramRetryAt = null;
       return;
@@ -684,7 +829,8 @@ class BoardController extends ChangeNotifier {
         'param_value': raw,
         'param_type': type,
       });
-      params.remove(name);
+      // the old value stays visible until the vehicle echoes the new one
+      pendingWrites.add(name);
       if (!paramNames.contains(name)) paramNames.add(name);
     }
     _fetchParams();
@@ -710,6 +856,9 @@ class BoardController extends ChangeNotifier {
 
   /// name -> text typed by the user, until the board reports that value.
   final Map<String, String> paramEdits = {};
+
+  /// Parameter the Parameters page should select and show (set by the search).
+  String? paramFocus;
   bool paramRebootAfterWrite = true;
 
   bool get loadingAllParams => _fullLoad != null;
@@ -729,7 +878,8 @@ class BoardController extends ChangeNotifier {
     final load = _fullLoad;
     final target = this.target;
     if (load == null) {
-      if (page == AppPage.params && !fullLoaded && target != null && paramsReady && job == null) loadAllParams();
+      // every page works from the whole list, so it is downloaded once per connection
+      if (!fullLoaded && target != null && paramsReady && job == null && activeTest == null) loadAllParams();
       return;
     }
     if (target == null) return;
@@ -761,6 +911,7 @@ class BoardController extends ChangeNotifier {
   void _finishFullLoad() {
     _fullLoad = null;
     fullLoaded = true;
+    if (bootParams.isEmpty) bootParams = Map.of(params);
     final missing = paramCount - _paramIndices.length;
     if (missing > 0) addLog(Mav.severityWarning, 'Parameter download incomplete: $missing missing');
   }
@@ -959,9 +1110,17 @@ class BoardController extends ChangeNotifier {
     if (_disposed) return;
     _disposed = true;
     job = null;
+    for (final hook in shutdownHooks) {
+      try {
+        await hook();
+      } catch (_) {
+        // the app is closing anyway
+      }
+    }
     _stopEthProbe();
     _ticker?.cancel();
     _noticeTimer?.cancel();
+    messageListeners.clear();
     unawaited(_sub?.cancel());
     final conn = _conn;
     _conn = null;

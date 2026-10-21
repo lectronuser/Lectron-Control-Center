@@ -1,7 +1,7 @@
 /// Static description of the Lectron Pi5-H7 and the ArduPilot tables used to decode it.
 library;
 
-const String appName = 'Board Test';
+const String appName = 'Lectron Control Center';
 const String boardName = 'Lectron Pi5-H7';
 
 const List<int> baudRates = [9600, 57600, 115200, 230400, 460800, 921600];

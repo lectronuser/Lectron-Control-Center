@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../../mavlink/mavlink.dart';
+import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -33,8 +34,8 @@ class _MessagesPageState extends State<MessagesPage> {
       (m) => c.notify(m, sticky: true),
       () => getSaveLocation(
         suggestedName: 'board_test_${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}.log',
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'Log files', extensions: ['log', 'txt']),
+        acceptedTypeGroups: [
+          XTypeGroup(label: tr('Log files'), extensions: ['log', 'txt']),
         ],
       ),
     );
@@ -56,16 +57,16 @@ class _MessagesPageState extends State<MessagesPage> {
     ];
     final logDir = c.storage.logDir;
     return PageFrame(
-      title: 'Messages',
-      subtitle: 'Status text, warnings and command results',
+      title: tr('Messages'),
+      subtitle: tr('Status text, warnings and command results'),
       scroll: false,
       actions: [
         SegmentedButton<int>(
           showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: Mav.severityDebug, label: Text('All')),
-            ButtonSegment(value: Mav.severityWarning, label: Text('Warnings')),
-            ButtonSegment(value: Mav.severityError, label: Text('Errors')),
+          segments: [
+            ButtonSegment(value: Mav.severityDebug, label: Text(tr('All'))),
+            ButtonSegment(value: Mav.severityWarning, label: Text(tr('Warnings'))),
+            ButtonSegment(value: Mav.severityError, label: Text(tr('Errors'))),
           ],
           selected: {_maxSeverity},
           onSelectionChanged: (s) => setState(() => _maxSeverity = s.first),
@@ -73,12 +74,12 @@ class _MessagesPageState extends State<MessagesPage> {
         OutlinedButton.icon(
           onPressed: entries.isEmpty ? null : () => _export(entries),
           icon: const Icon(Icons.save_alt, size: 16),
-          label: const Text('Export…'),
+          label: Text(tr('Export…')),
         ),
         OutlinedButton.icon(
           onPressed: c.statusLog.isEmpty ? null : c.clearStatusLog,
           icon: const Icon(Icons.delete_outline, size: 16),
-          label: const Text('Clear'),
+          label: Text(tr('Clear')),
         ),
       ],
       child: AppCard(
@@ -89,21 +90,21 @@ class _MessagesPageState extends State<MessagesPage> {
             children: [
               TextField(
                 onChanged: (t) => setState(() => _search = t),
-                decoration: const InputDecoration(
-                  hintText: 'Filter messages',
+                decoration: InputDecoration(
+                  hintText: tr('Filter messages'),
                   prefixIcon: Icon(Icons.search, size: 18),
                   prefixIconConstraints: BoxConstraints(minWidth: 38),
                 ),
               ),
               const SizedBox(height: 6),
-              const SimpleTable(
-                columns: [Col('Time', width: 90), Col('Severity', width: 120), Col('Message')],
+              SimpleTable(
+                columns: [Col(tr('Time'), width: 90), Col(tr('Severity'), width: 120), Col(tr('Message'))],
                 rows: [],
-                empty: '',
+                empty: tr(''),
               ),
               Expanded(
                 child: entries.isEmpty
-                    ? const Center(child: Muted('No messages'))
+                    ? Center(child: Muted(tr('No messages')))
                     : ListView.builder(
                         // newest at the bottom, and the list stays there while messages arrive
                         reverse: true,
@@ -138,7 +139,7 @@ class _MessagesPageState extends State<MessagesPage> {
                         openExternally(logDir.path);
                       },
                       icon: const Icon(Icons.folder_open, size: 16),
-                      label: const Text('Open Folder'),
+                      label: Text(tr('Open Folder')),
                     ),
                 ],
               ),

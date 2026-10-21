@@ -4,16 +4,16 @@
 #   tool/build_appimage.sh            build the app, then pack it
 #   tool/build_appimage.sh --no-build pack the existing build/linux/x64/release/bundle
 #
-# Result: build/BoardTest-<version>-x86_64.AppImage
+# Result: build/LectronControlCenter-<version>-x86_64.AppImage
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 APP_ID="com.lectron.lectron_control"   # APPLICATION_ID in linux/CMakeLists.txt, also the window class
-BINARY="lectron_control"
+BINARY="lectron_control_center"
 BUNDLE="build/linux/x64/release/bundle"
 APPDIR="build/AppDir"
 VERSION="$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)"
-OUTPUT="build/BoardTest-${VERSION}-x86_64.AppImage"
+OUTPUT="build/LectronControlCenter-${VERSION}-x86_64.AppImage"
 
 if [[ "${1:-}" != "--no-build" ]]; then
   flutter build linux --release
@@ -30,7 +30,7 @@ ln -s "$APP_ID.png" "$APPDIR/.DirIcon"
 cat > "$APPDIR/$APP_ID.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Board Test
+Name=Lectron Control Center
 GenericName=Lectron Pi5-H7 board test
 Comment=Board test, configuration and PDF test report for the Lectron Pi5-H7
 Exec=$BINARY
@@ -43,7 +43,7 @@ DESKTOP
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
-exec "$HERE/lectron_control" "$@"
+exec "$HERE/lectron_control_center" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../board/board_data.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
+import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -17,7 +18,7 @@ class BoardPage extends StatelessWidget {
     final servo = c.servo;
     final cards = [
       AppCard(
-        title: 'Board',
+        title: tr('Board'),
         child: Column(
           children: [
             for (final (key, value, tone) in c.boardInfoRows())
@@ -47,8 +48,8 @@ class BoardPage extends StatelessWidget {
     final onboard = c.onboardRows();
     final missing = onboard.where((r) => r.tone == Tone.err).length;
     return PageFrame(
-      title: 'Board',
-      subtitle: 'Board identity, RC input, motor outputs and onboard hardware',
+      title: tr('Board'),
+      subtitle: tr('Board identity, RC input, motor outputs and onboard hardware'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -58,9 +59,7 @@ class BoardPage extends StatelessWidget {
             builder: (context, box) {
               if (box.maxWidth < 900) {
                 return Column(
-                  children: [
-                    for (final card in cards) Padding(padding: const EdgeInsets.only(bottom: 16), child: card),
-                  ],
+                  children: [for (final card in cards) Padding(padding: EdgeInsets.only(bottom: 16), child: card)],
                 );
               }
               return IntrinsicHeight(
@@ -68,7 +67,7 @@ class BoardPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (var i = 0; i < cards.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 16),
+                      if (i > 0) SizedBox(width: 16),
                       Expanded(child: cards[i]),
                     ],
                   ],
@@ -76,9 +75,9 @@ class BoardPage extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           AppCard(
-            title: 'Onboard Hardware',
+            title: tr('Onboard Hardware'),
             badge: boardName,
             trailing: !c.connected
                 ? null
@@ -87,13 +86,13 @@ class BoardPage extends StatelessWidget {
                     missing == 0 ? Tone.ok : Tone.err,
                   ),
             child: SimpleTable(
-              columns: const [
-                Col('Item', flex: 3),
-                Col('Interface', flex: 2),
-                Col('Status', width: 170),
-                Col('Details', flex: 6),
+              columns: [
+                Col(tr('Item'), flex: 3),
+                Col(tr('Interface'), flex: 2),
+                Col(tr('Status'), width: 170),
+                Col(tr('Details'), flex: 6),
               ],
-              empty: 'Connect a board to check its hardware',
+              empty: tr('Connect a board to check its hardware'),
               rows: [
                 if (c.connected)
                   for (final r in onboard)
@@ -223,7 +222,7 @@ class _ChannelCard extends StatelessWidget {
       title: title,
       trailing: info.isEmpty ? null : Muted(info, size: 12),
       child: values.isEmpty
-          ? const Muted('No data')
+          ? Muted(tr('No data'))
           : Column(children: [for (var i = 0; i < values.length; i++) _bar(i, values[i])]),
     );
   }

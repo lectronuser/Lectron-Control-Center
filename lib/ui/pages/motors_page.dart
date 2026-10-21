@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../board/board_data.dart';
 import '../../core/board_controller.dart';
 import '../shell.dart';
+import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -15,41 +16,41 @@ class MotorsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final cards = [_frameCard(), _MotorTestCard(c)];
     return PageFrame(
-      title: 'Motors',
-      subtitle: 'Frame, ESC protocol, output assignment and motor test',
+      title: tr('Motors'),
+      subtitle: tr('Frame, ESC protocol, output assignment and motor test'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           LayoutBuilder(
             builder: (context, box) {
               if (box.maxWidth < 860) {
-                return Column(children: [cards[0], const SizedBox(height: 16), cards[1]]);
+                return Column(children: [cards[0], SizedBox(height: 16), cards[1]]);
               }
               return IntrinsicHeight(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(child: cards[0]),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16),
                     Expanded(child: cards[1]),
                   ],
                 ),
               );
             },
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           AppCard(
-            title: 'Outputs',
+            title: tr('Outputs'),
             badge: 'SERVO1-16',
             child: SimpleTable(
               rowHeight: 44,
-              columns: const [
-                Col('Output', flex: 2),
-                Col('Connector', flex: 3),
-                Col('Function', width: 240),
-                Col('Min', width: 110),
-                Col('Max', width: 110),
-                Col('Live PWM', flex: 2),
+              columns: [
+                Col(tr('Output'), flex: 2),
+                Col(tr('Connector'), flex: 3),
+                Col(tr('Function'), width: 240),
+                Col(tr('Min'), width: 110),
+                Col(tr('Max'), width: 110),
+                Col(tr('Live PWM'), flex: 2),
               ],
               rows: [for (var i = 0; i < c.outputs.length; i++) _outputRow(i)],
             ),
@@ -67,7 +68,7 @@ class MotorsPage extends StatelessWidget {
   }
 
   Widget _frameCard() => AppCard(
-    title: 'Frame & ESC',
+    title: tr('Frame & ESC'),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -144,7 +145,7 @@ class _MotorTestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = c.motorTestEnabled;
     return AppCard(
-      title: 'Motor Test',
+      title: tr('Motor Test'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -172,10 +173,10 @@ class _MotorTestCard extends StatelessWidget {
           const SizedBox(height: 6),
           Align(
             alignment: Alignment.centerLeft,
-            child: CheckRow('Propellers are removed', c.propsOff, (v) => c.edit(() => c.propsOff = v)),
+            child: CheckRow(tr('Propellers are removed'), c.propsOff, (v) => c.edit(() => c.propsOff = v)),
           ),
           const SizedBox(height: 4),
-          const Muted('Throttle'),
+          Muted(tr('Throttle')),
           Row(
             children: [
               Expanded(
@@ -236,13 +237,13 @@ class _MotorTestCard extends StatelessWidget {
               Expanded(
                 child: OutlinedButton(
                   onPressed: enabled ? () => c.motorTest(1, 8) : null,
-                  child: const Text('Test All in Sequence'),
+                  child: Text(tr('Test All in Sequence')),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: DangerButton(
-                  label: 'Stop All',
+                  label: tr('Stop All'),
                   icon: Icons.stop_circle_outlined,
                   onPressed: c.connected ? c.motorStop : null,
                 ),

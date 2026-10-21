@@ -1,121 +1,215 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../board/board_data.dart';
 import '../core/board_controller.dart';
+import '../core/models.dart';
+import '../core/transport.dart';
+import 'dock.dart';
+import 'i18n.dart';
+import 'pages.dart';
+import 'pages/app_settings_page.dart';
 import 'pages/board_page.dart';
+import 'pages/calibration_page.dart';
+import 'pages/files_page.dart';
+import 'pages/firmware_page.dart';
 import 'pages/live_page.dart';
+import 'pages/logs_page.dart';
+import 'pages/map_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/motors_page.dart';
+import 'pages/osd_page.dart';
+import 'pages/outputs_page.dart';
+import 'pages/overview_page.dart';
 import 'pages/params_page.dart';
+import 'pages/peripherals_page.dart';
+import 'pages/ports_page.dart';
+import 'pages/receiver_page.dart';
+import 'pages/recipes_page.dart';
+import 'pages/safety_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/simulation_page.dart';
 import 'pages/test_page.dart';
+import 'pages/wizard_page.dart';
+import 'search.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-const _destinations = <(AppPage, IconData, String)>[
-  (AppPage.board, Icons.developer_board, 'Board'),
-  (AppPage.test, Icons.fact_check_outlined, 'Test'),
-  (AppPage.motors, Icons.toys_outlined, 'Motors'),
-  (AppPage.settings, Icons.settings_ethernet, 'Settings'),
-  (AppPage.params, Icons.tune, 'Params'),
-  (AppPage.live, Icons.sensors, 'Live Data'),
-  (AppPage.messages, Icons.forum_outlined, 'Messages'),
-];
+const String productName = 'Lectron Control Center';
 
-/// Top bar with the connection controls, the page rail and the status bar around the current page.
-class Shell extends StatelessWidget {
+/// Top bar with the connection and vehicle status, the sidebar, the page, the dock and the status bar.
+class Shell extends StatefulWidget {
   const Shell({super.key, required this.controller});
   final BoardController controller;
 
   @override
+  State<Shell> createState() => _ShellState();
+}
+
+class _ShellState extends State<Shell> {
+  final FocusNode _focus = FocusNode(debugLabel: 'shell');
+  bool _searchOpen = false;
+
+  BoardController get c => widget.controller;
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openSearch() async {
+    if (_searchOpen) return;
+    _searchOpen = true;
+    await showSearchDialog(context, c);
+    _searchOpen = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        final c = controller;
-        return Scaffold(
-          body: Column(
-            children: [
-              _TopBar(c),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _Rail(c),
-                    Expanded(
-                      child: switch (c.page) {
-                        AppPage.board => BoardPage(c),
-                        AppPage.test => TestPage(c),
-                        AppPage.motors => MotorsPage(c),
-                        AppPage.settings => SettingsPage(c),
-                        AppPage.params => ParamsPage(c),
-                        AppPage.live => LivePage(c),
-                        AppPage.messages => MessagesPage(c),
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              _StatusBar(c),
-            ],
-          ),
-        );
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): _openSearch,
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): _openSearch,
+        const SingleActivator(LogicalKeyboardKey.keyJ, control: true): c.toggleDock,
       },
+      child: Focus(
+        focusNode: _focus,
+        autofocus: true,
+        child: ListenableBuilder(
+          listenable: c,
+          builder: (context, _) {
+            appLanguage = c.language;
+            return Scaffold(
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _TopBar(c, onSearch: _openSearch),
+                  if (c.target != null) VehicleStrip(c),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _Sidebar(c, onSearch: _openSearch),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (c.paramEdits.isNotEmpty && c.page != AppPage.params) _StagedBar(c),
+                              Expanded(child: _page(c)),
+                              if (c.dockOpen) Dock(c),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _StatusBar(c),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
 
+Widget _page(BoardController c) => switch (c.page) {
+  AppPage.overview => OverviewPage(c),
+  AppPage.messages => MessagesPage(c),
+  AppPage.wizard => WizardPage(c),
+  AppPage.calibration => CalibrationPage(c),
+  AppPage.receiver => ReceiverPage(c),
+  AppPage.safety => SafetyPage(c),
+  AppPage.outputs => OutputsPage(c),
+  AppPage.ports => PortsPage(c),
+  AppPage.peripherals => PeripheralsPage(c),
+  AppPage.recipes => RecipesPage(c),
+  AppPage.osd => OsdPage(c),
+  AppPage.files => FilesPage(c),
+  AppPage.logs => LogsPage(c),
+  AppPage.map => MapPage(c),
+  AppPage.firmware => FirmwarePage(c),
+  AppPage.simulation => SimulationPage(c),
+  AppPage.params => ParamsPage(c),
+  AppPage.board => BoardPage(c),
+  AppPage.test => TestPage(c),
+  AppPage.motors => MotorsPage(c),
+  AppPage.settings => SettingsPage(c),
+  AppPage.live => LivePage(c),
+  AppPage.app => AppSettingsPage(c),
+};
+
+// ---- top bar --------------------------------------------------------------------------------------
+
 class _TopBar extends StatelessWidget {
-  const _TopBar(this.c);
+  const _TopBar(this.c, {required this.onSearch});
   final BoardController c;
+  final VoidCallback onSearch;
 
   @override
   Widget build(BuildContext context) {
     final busy = c.connected || c.job != null;
     final link = c.linkStatus;
-    final udp = c.selectedPort?.startsWith('udp:') ?? false;
+    final selected = c.selectedPort ?? '';
+    final network = selected.startsWith('udp:') || selected.startsWith('tcp:');
+    final items = <String, String>{
+      for (final p in c.ports) p.id: _portLabel(p),
+      for (final r in c.recentLinks)
+        if (!c.ports.any((p) => p.id == r.id) && (r.id.startsWith('udp:') || r.id.startsWith('tcp:')))
+          r.id: networkLabel(r.id),
+      if (selected.isNotEmpty && !c.ports.any((p) => p.id == selected)) selected: networkLabel(selected),
+    };
     return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
         children: [
-          Image.asset('assets/icon/app_icon.png', width: 32, height: 32, filterQuality: FilterQuality.medium),
+          Image.asset('assets/icon/app_icon.png', width: 30, height: 30, filterQuality: FilterQuality.medium),
           const SizedBox(width: 10),
-          const Column(
+          Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(appName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              Muted(boardName, size: 12),
+              const Text(productName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              Muted(tr('ArduPilot & PX4 setup'), size: 11),
             ],
           ),
-          const SizedBox(width: 24),
           const Spacer(),
           Flexible(
             flex: 6,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 380),
+              constraints: const BoxConstraints(maxWidth: 360),
               child: _Picker<String?>(
-                value: c.ports.any((p) => p.id == c.selectedPort) ? c.selectedPort : null,
-                hint: 'No serial ports found',
+                value: items.containsKey(c.selectedPort) ? c.selectedPort : null,
+                hint: tr('No ports found'),
                 enabled: !busy,
-                items: {for (final p in c.ports) p.id: p.label},
+                items: items,
                 onChanged: c.selectPort,
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
+          Tooltip(
+            message: tr('Network link (UDP / TCP) or simulator…'),
+            child: IconButton(
+              onPressed: busy ? null : () => showNetworkDialog(context, c),
+              icon: const Icon(Icons.lan_outlined, size: 20),
+            ),
+          ),
+          const SizedBox(width: 2),
           SizedBox(
-            width: 108,
+            width: 104,
             child: Tooltip(
-              message: udp ? 'Baud rate is not used for UDP' : 'Baud rate',
+              message: network ? tr('Baud rate is not used for network links') : tr('Baud rate'),
               child: _Picker<int>(
                 value: c.selectedBaud,
-                enabled: !busy && !udp,
+                enabled: !busy && !network,
                 items: {for (final b in baudRates) b: '$b'},
                 onChanged: (b) => c.selectBaud(b ?? defaultBaud),
               ),
@@ -123,23 +217,56 @@ class _TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 128,
+            width: 152,
             child: FilledButton.icon(
               style: busy ? FilledButton.styleFrom(backgroundColor: AppColors.err) : null,
-              onPressed: busy || c.selectedPort != null ? c.toggleConnection : null,
+              onPressed: busy ? () => _disconnect(context, c) : (c.selectedPort != null ? c.toggleConnection : null),
               icon: Icon(busy ? Icons.link_off : Icons.usb, size: 16),
-              label: Text(c.connected ? 'Disconnect' : (c.job != null ? 'Cancel' : 'Connect')),
+              label: Text(c.connected ? tr('Disconnect') : (c.job != null ? tr('Cancel') : tr('Connect'))),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: tr('Auto-connect: open a flight controller as soon as it is plugged in'),
+            child: FilterChip(
+              label: Text(tr('Auto'), style: const TextStyle(fontSize: 12)),
+              selected: c.autoConnect,
+              showCheckmark: false,
+              avatar: Icon(c.autoConnect ? Icons.bolt : Icons.bolt_outlined, size: 16),
+              onSelected: c.setAutoConnect,
+            ),
+          ),
+          const SizedBox(width: 10),
           SizedBox(
-            width: 168,
-            child: Align(alignment: Alignment.centerRight, child: StatusChip(link.text, link.tone, dot: true)),
+            width: 150,
+            child: Align(alignment: Alignment.centerRight, child: StatusChip(tr(link.text), link.tone, dot: true)),
           ),
         ],
       ),
     );
   }
+}
+
+String _portLabel(PortInfo p) => switch (p.kind) {
+  PortKind.ardupilot => '${p.label}   [ArduPilot]',
+  PortKind.px4 => '${p.label}   [PX4 / Pixhawk]',
+  PortKind.radio => '${p.label}   [${tr('Radio')}]',
+  _ => p.label,
+};
+
+/// Disconnect runs a short readiness check first, so problems are seen before the cable is pulled.
+Future<void> _disconnect(BuildContext context, BoardController c) async {
+  final issues = c.connected && c.target != null ? c.readinessIssues() : const <String>[];
+  if (issues.isNotEmpty) {
+    final go = await confirm(
+      context,
+      tr('Before you unplug'),
+      '${tr('These need attention before flying:')}\n\n${issues.map((i) => '•  $i').join('\n')}',
+      action: tr('Disconnect anyway'),
+    );
+    if (!go) return;
+  }
+  await c.toggleConnection();
 }
 
 class _Picker<T> extends StatelessWidget {
@@ -184,34 +311,164 @@ class _Picker<T> extends StatelessWidget {
   }
 }
 
-class _Rail extends StatelessWidget {
-  const _Rail(this.c);
+/// UDP / TCP links, simulator presets and recent links.
+Future<void> showNetworkDialog(BuildContext context, BoardController c) async {
+  final host = TextEditingController(text: '127.0.0.1');
+  final port = TextEditingController(text: '5760');
+  var udp = false;
+  final id = await showDialog<String>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) {
+        String build() => udp ? 'udp:${port.text.trim()}' : 'tcp:${host.text.trim()}:${port.text.trim()}';
+        return AlertDialog(
+          title: Text(tr('Network link'), style: Theme.of(context).textTheme.titleMedium),
+          content: SizedBox(
+            width: 440,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Muted(tr('Simulators and bridges')),
+                const SizedBox(height: 6),
+                for (final (preset, label) in networkPresets)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.computer, size: 18),
+                    title: Text(label),
+                    subtitle: Text(preset, style: monoStyle.copyWith(fontSize: 11, color: AppColors.muted)),
+                    onTap: () => Navigator.pop(context, preset),
+                  ),
+                if (c.recentLinks.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Muted(tr('Recent')),
+                  for (final r in c.recentLinks.take(5))
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.history, size: 18),
+                      title: Text(r.id.startsWith('udp:') || r.id.startsWith('tcp:') ? networkLabel(r.id) : r.id),
+                      subtitle: r.id.startsWith('udp:') || r.id.startsWith('tcp:') ? null : Text('${r.baud} baud'),
+                      onTap: () => Navigator.pop(context, '${r.id}|${r.baud}'),
+                    ),
+                ],
+                const Divider(height: 24),
+                Row(
+                  children: [
+                    SegmentedButton<bool>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('TCP')),
+                        ButtonSegment(value: true, label: Text('UDP')),
+                      ],
+                      selected: {udp},
+                      onSelectionChanged: (s) => setState(() {
+                        udp = s.first;
+                        port.text = udp ? '14550' : '5760';
+                      }),
+                    ),
+                    const SizedBox(width: 10),
+                    if (!udp)
+                      Expanded(
+                        child: TextField(
+                          controller: host,
+                          decoration: InputDecoration(hintText: tr('Host')),
+                        ),
+                      ),
+                    if (!udp) const SizedBox(width: 8),
+                    SizedBox(
+                      width: 90,
+                      child: TextField(
+                        controller: port,
+                        decoration: InputDecoration(hintText: tr('Port')),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Muted(
+                  udp ? tr('Listens on this port and replies to whoever sends.') : tr('Connects to host:port.'),
+                  size: 12,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(context, build()), child: Text(tr('Connect'))),
+          ],
+        );
+      },
+    ),
+  );
+  host.dispose();
+  port.dispose();
+  if (id == null) return;
+  final parts = id.split('|');
+  await c.connectTo(parts[0], baud: parts.length > 1 ? int.tryParse(parts[1]) : null);
+}
+
+// ---- vehicle status strip -------------------------------------------------------------------------
+
+/// Firmware, armed state, flight mode, GPS, battery, PreArm reasons and "Reboot required".
+class VehicleStrip extends StatelessWidget {
+  const VehicleStrip(this.c, {super.key});
   final BoardController c;
 
   @override
   Widget build(BuildContext context) {
+    final hb = c.hb;
+    final fw = c.firmwareChip;
+    final prearm = c.prearmReasons;
+    final ready = c.prearmHealthy;
+    final board = c.version['board'];
     return Container(
-      width: 84,
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(right: BorderSide(color: AppColors.border)),
+        color: AppColors.bg,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 10),
       child: SingleChildScrollView(
-        child: Column(
+        scrollDirection: Axis.horizontal,
+        child: Row(
           children: [
-            for (final (page, icon, label) in _destinations)
-              _RailButton(
-                icon: icon,
-                label: label,
-                selected: c.page == page,
-                badge: switch (page) {
-                  AppPage.test when c.testsFailed > 0 => ('${c.testsFailed}', AppColors.err),
-                  AppPage.params when c.paramEdits.isNotEmpty => ('${c.paramEdits.length}', AppColors.accent),
-                  _ => null,
-                },
-                onTap: () => c.showPage(page),
+            if (board != null) ...[Muted(board, size: 12), const SizedBox(width: 10)],
+            if (fw != null)
+              Tooltip(
+                message: fw.$2 ? tr('Pre-release firmware: test carefully before flying') : '',
+                child: StatusChip(fw.$2 ? '${fw.$1}  ${tr('BETA/DEV')}' : fw.$1, fw.$2 ? Tone.warn : Tone.muted),
               ),
+            const SizedBox(width: 8),
+            if (hb != null) StatusChip(hb.armed ? tr('ARMED') : tr('Disarmed'), hb.armed ? Tone.err : Tone.ok),
+            const SizedBox(width: 8),
+            if (hb != null) StatusChip(hb.mode, Tone.accent),
+            const SizedBox(width: 8),
+            StatusChip(c.gpsChip.text, c.gpsChip.tone),
+            const SizedBox(width: 8),
+            StatusChip(c.batteryChip.text, c.batteryChip.tone),
+            const SizedBox(width: 8),
+            InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => showPrearmDialog(context, c),
+              child: StatusChip(
+                prearm.isNotEmpty
+                    ? 'PreArm · ${prearm.length}'
+                    : (ready == true ? tr('Ready to arm') : (ready == false ? tr('PreArm failing') : 'PreArm')),
+                prearm.isNotEmpty || ready == false ? Tone.err : (ready == true ? Tone.ok : Tone.muted),
+              ),
+            ),
+            if (c.rebootRequired) ...[
+              const SizedBox(width: 8),
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: c.job == null ? c.rebootBoard : null,
+                child: Tooltip(
+                  message: tr('Some changes only take effect after a reboot. Click to reboot.'),
+                  child: StatusChip(tr('Reboot required'), Tone.warn, dot: true),
+                ),
+              ),
+            ],
+            if (c.paramMetaStatus.isNotEmpty) ...[const SizedBox(width: 12), Muted(tr(c.paramMetaStatus), size: 12)],
           ],
         ),
       ),
@@ -219,57 +476,272 @@ class _Rail extends StatelessWidget {
   }
 }
 
-class _RailButton extends StatelessWidget {
-  const _RailButton({required this.icon, required this.label, required this.selected, required this.onTap, this.badge});
-  final IconData icon;
-  final String label;
+Future<void> showPrearmDialog(BuildContext context, BoardController c) => showDialog<void>(
+  context: context,
+  builder: (context) => ListenableBuilder(
+    listenable: c,
+    builder: (context, _) {
+      final reasons = c.prearmReasons;
+      return AlertDialog(
+        title: Text(tr('Arming checks'), style: Theme.of(context).textTheme.titleMedium),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (reasons.isEmpty)
+                Muted(
+                  c.prearmHealthy == true
+                      ? tr('No failing checks reported. The vehicle is ready to arm.')
+                      : tr('No failing checks reported yet. Run the checks to ask the vehicle.'),
+                ),
+              for (final r in reasons)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.error_outline, size: 16, color: AppColors.err),
+                      const SizedBox(width: 8),
+                      Expanded(child: SelectableText(r)),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 10),
+              Muted(tr('Reasons are collected from PreArm messages of the last minute.'), size: 12),
+            ],
+          ),
+        ),
+        actions: [
+          if (c.isArdupilot)
+            OutlinedButton.icon(
+              onPressed: c.runPrearmChecks,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: Text(tr('Run checks')),
+            ),
+          FilledButton(onPressed: () => Navigator.pop(context), child: Text(tr('Close'))),
+        ],
+      );
+    },
+  ),
+);
+
+// ---- sidebar --------------------------------------------------------------------------------------
+
+class _Sidebar extends StatefulWidget {
+  const _Sidebar(this.c, {required this.onSearch});
+  final BoardController c;
+  final VoidCallback onSearch;
+
+  @override
+  State<_Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends State<_Sidebar> {
+  late bool _compact = widget.c.storage.getBool('sidebarCompact') ?? false;
+  late final Set<String> _folded = {
+    ...(widget.c.storage.getString('foldedGroups') ?? '').split('\n').where((g) => g.isNotEmpty),
+  };
+
+  BoardController get c => widget.c;
+
+  void _fold(String group) {
+    setState(() => _folded.contains(group) ? _folded.remove(group) : _folded.add(group));
+    c.storage.put('foldedGroups', _folded.join('\n'));
+  }
+
+  (String, Color)? _badge(AppPage page) => switch (page) {
+    AppPage.test when c.testsFailed > 0 => ('${c.testsFailed}', AppColors.err),
+    AppPage.params when c.paramEdits.isNotEmpty => ('${c.paramEdits.length}', AppColors.accent),
+    _ => null,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final dots = c.pagesChangedSinceBoot();
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: _compact ? 64 : 212,
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(right: BorderSide(color: AppColors.border)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
+            child: Row(
+              children: [
+                if (!_compact)
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: widget.onSearch,
+                      child: Container(
+                        height: 34,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface2,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.search, size: 16, color: AppColors.muted),
+                            const SizedBox(width: 6),
+                            Expanded(child: Muted(tr('Search…'), size: 12)),
+                            const Muted('Ctrl+K', size: 11),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  tooltip: _compact ? tr('Expand sidebar') : tr('Collapse sidebar'),
+                  onPressed: () {
+                    setState(() => _compact = !_compact);
+                    c.storage.put('sidebarCompact', _compact);
+                  },
+                  icon: Icon(_compact ? Icons.chevron_right : Icons.chevron_left, size: 20),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 10),
+              children: [
+                for (final group in pageGroups) ...[
+                  if (!_compact)
+                    InkWell(
+                      onTap: () => _fold(group),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 12, 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                tr(group).toUpperCase(),
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.off,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              _folded.contains(group) ? Icons.expand_more : Icons.expand_less,
+                              size: 14,
+                              color: AppColors.off,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    const Divider(height: 14, indent: 14, endIndent: 14),
+                  if (_compact || !_folded.contains(group))
+                    for (final info in pageInfos.where((p) => p.group == group))
+                      _NavButton(
+                        info: info,
+                        compact: _compact,
+                        selected: c.page == info.page,
+                        badge: _badge(info.page),
+                        dot: dots.contains(info.page),
+                        onTap: () => c.showPage(info.page),
+                      ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavButton extends StatelessWidget {
+  const _NavButton({
+    required this.info,
+    required this.compact,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+    this.dot = false,
+  });
+  final PageInfo info;
+  final bool compact;
   final bool selected;
   final VoidCallback onTap;
   final (String, Color)? badge;
+  final bool dot;
 
   @override
   Widget build(BuildContext context) {
     final color = selected ? AppColors.accent : AppColors.muted;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: Material(
-        color: selected ? AppColors.accent.withValues(alpha: 0.15) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          hoverColor: AppColors.hover,
-          onTap: onTap,
-          child: SizedBox(
-            height: 58,
-            width: double.infinity,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, color: color, size: 22),
-                    const SizedBox(height: 4),
-                    Text(
-                      label,
-                      style: TextStyle(color: color, fontSize: 10.5, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-                if (badge != null)
-                  Positioned(
-                    top: 5,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(color: badge!.$2, borderRadius: BorderRadius.circular(8)),
-                      child: Text(
-                        badge!.$1,
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+    final label = tr(info.label);
+    final badgeWidget = badge == null
+        ? null
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(color: badge!.$2, borderRadius: BorderRadius.circular(8)),
+            child: Text(
+              badge!.$1,
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+            ),
+          );
+    final dotWidget = Container(
+      width: 7,
+      height: 7,
+      decoration: const BoxDecoration(color: AppColors.warn, shape: BoxShape.circle),
+    );
+    return Tooltip(
+      message: compact ? label : (dot ? tr('Settings on this page changed since the vehicle booted') : ''),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+        child: Material(
+          color: selected ? AppColors.accent.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: AppColors.hover,
+            onTap: onTap,
+            child: SizedBox(
+              height: 34,
+              child: compact
+                  ? Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Icon(info.icon, color: color, size: 20),
+                        if (badgeWidget != null) Positioned(top: 2, right: 4, child: badgeWidget),
+                        if (dot && badgeWidget == null) Positioned(top: 6, right: 10, child: dotWidget),
+                      ],
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Row(
+                        children: [
+                          Icon(info.icon, color: color, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              label,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: selected ? AppColors.text : AppColors.muted,
+                                fontSize: 13,
+                                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          if (dot) ...[dotWidget, const SizedBox(width: 6)],
+                          ?badgeWidget,
+                        ],
                       ),
                     ),
-                  ),
-              ],
             ),
           ),
         ),
@@ -278,6 +750,46 @@ class _RailButton extends StatelessWidget {
   }
 }
 
+// ---- staged changes -------------------------------------------------------------------------------
+
+class _StagedBar extends StatelessWidget {
+  const _StagedBar(this.c);
+  final BoardController c;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = c.paramEdits.length;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.10),
+        border: const Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.edit_note, size: 18, color: AppColors.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              trf('{n} change(s) staged on this PC, not on the vehicle yet', {'n': n}),
+              style: const TextStyle(color: AppColors.accent, fontSize: 13),
+            ),
+          ),
+          OutlinedButton(onPressed: c.revertParamEdits, child: Text(tr('Discard'))),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: c.target == null ? null : () => c.notify(tr(c.writeStaged().text)),
+            icon: const Icon(Icons.upload, size: 16),
+            label: Text(tr('Write')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- status bar -----------------------------------------------------------------------------------
+
 class _StatusBar extends StatelessWidget {
   const _StatusBar(this.c);
   final BoardController c;
@@ -285,6 +797,7 @@ class _StatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final job = c.job;
+    final device = c.portDevice ?? '';
     return Container(
       height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -306,11 +819,32 @@ class _StatusBar extends StatelessWidget {
               style: TextStyle(color: job != null ? AppColors.warn : AppColors.muted, fontSize: 12),
             ),
           ),
-          if (c.connected) Muted(c.paramSummary, size: 12),
-          if (c.connected && c.portDevice != null) ...[
+          if (c.connected)
+            Muted(
+              c.loadingAllParams
+                  ? '${tr('Parameters')} ${c.paramsReceived}/${c.paramCount}'
+                  : (c.fullLoaded ? '${c.params.length} ${tr('parameters')}' : c.paramSummary),
+              size: 12,
+            ),
+          if (c.connected && device.isNotEmpty) ...[
             const SizedBox(width: 16),
-            Muted(c.portDevice!.startsWith('udp:') ? c.portDevice! : '${c.portDevice} @ ${c.portBaud}', size: 12),
+            Muted(
+              device.startsWith('udp:') || device.startsWith('tcp:') ? device : '$device @ ${c.portBaud}',
+              size: 12,
+            ),
           ],
+          const SizedBox(width: 12),
+          Tooltip(
+            message: tr('Inspection dock (Ctrl+J)'),
+            child: InkWell(
+              onTap: c.toggleDock,
+              child: Icon(
+                c.dockOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                size: 18,
+                color: AppColors.muted,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -329,13 +863,14 @@ class LinkButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final action = c.connected ? onPressed : null;
+    final text = Text(tr(label));
     if (primary) {
       return icon == null
-          ? FilledButton(onPressed: action, child: Text(label))
-          : FilledButton.icon(onPressed: action, icon: Icon(icon, size: 16), label: Text(label));
+          ? FilledButton(onPressed: action, child: text)
+          : FilledButton.icon(onPressed: action, icon: Icon(icon, size: 16), label: text);
     }
     return icon == null
-        ? OutlinedButton(onPressed: action, child: Text(label))
-        : OutlinedButton.icon(onPressed: action, icon: Icon(icon, size: 16), label: Text(label));
+        ? OutlinedButton(onPressed: action, child: text)
+        : OutlinedButton.icon(onPressed: action, icon: Icon(icon, size: 16), label: text);
   }
 }
