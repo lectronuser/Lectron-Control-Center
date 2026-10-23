@@ -125,7 +125,6 @@ void main() {
     expect(classifyUsb(0x26AC, 0x0011, 'PX4 FMU v2.x'), PortKind.px4);
     expect(classifyUsb(0x0403, 0x6015, 'FT231X USB UART'), PortKind.radio);
     expect(classifyUsb(0x1A86, 0x7523, 'USB Serial'), PortKind.serial);
-    expect(networkLabel('tcp:127.0.0.1:5760'), contains('SITL'));
     expect(networkLabel('udp:14600'), 'UDP listen on 14600');
   });
 

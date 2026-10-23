@@ -16,7 +16,6 @@ const List<String> pageGroups = ['Vehicle', 'Setup', 'For Advanced Users', 'Lect
 
 const List<PageInfo> pageInfos = [
   PageInfo(AppPage.overview, Icons.dashboard_outlined, 'Overview', 'Vehicle', 'status arm mode reboot attitude'),
-  PageInfo(AppPage.map, Icons.map_outlined, 'Map', 'Vehicle', 'mission waypoint fence rally home offline'),
   PageInfo(AppPage.messages, Icons.forum_outlined, 'Messages', 'Vehicle', 'statustext log errors'),
   PageInfo(AppPage.firmware, Icons.system_update_alt, 'Firmware', 'Vehicle', 'flash bootloader upload update'),
   PageInfo(AppPage.wizard, Icons.auto_fix_high, 'Setup Wizard', 'Setup', 'new vehicle step first'),
@@ -31,7 +30,6 @@ const List<PageInfo> pageInfos = [
   PageInfo(AppPage.params, Icons.tune, 'Parameters', 'For Advanced Users', 'param edit compare file'),
   PageInfo(AppPage.logs, Icons.receipt_long_outlined, 'Logs', 'For Advanced Users', 'dataflash download vibration'),
   PageInfo(AppPage.files, Icons.folder_outlined, 'Scripts & Files', 'For Advanced Users', 'lua ftp sd card'),
-  PageInfo(AppPage.simulation, Icons.flight_takeoff, 'Simulation', 'For Advanced Users', 'sitl simulator hitl'),
   PageInfo(AppPage.board, Icons.developer_board, 'Board', 'Lectron Pi5-H7', 'hardware onboard'),
   PageInfo(AppPage.test, Icons.fact_check_outlined, 'Port Test', 'Lectron Pi5-H7', 'report pdf'),
   PageInfo(AppPage.motors, Icons.rotate_right, 'Motor Test', 'Lectron Pi5-H7', 'spin'),

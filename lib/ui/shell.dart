@@ -15,7 +15,6 @@ import 'pages/files_page.dart';
 import 'pages/firmware_page.dart';
 import 'pages/live_page.dart';
 import 'pages/logs_page.dart';
-import 'pages/map_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/motors_page.dart';
 import 'pages/osd_page.dart';
@@ -28,7 +27,6 @@ import 'pages/receiver_page.dart';
 import 'pages/recipes_page.dart';
 import 'pages/safety_page.dart';
 import 'pages/settings_page.dart';
-import 'pages/simulation_page.dart';
 import 'pages/test_page.dart';
 import 'pages/wizard_page.dart';
 import 'search.dart';
@@ -129,9 +127,7 @@ Widget _page(BoardController c) => switch (c.page) {
   AppPage.osd => OsdPage(c),
   AppPage.files => FilesPage(c),
   AppPage.logs => LogsPage(c),
-  AppPage.map => MapPage(c),
   AppPage.firmware => FirmwarePage(c),
-  AppPage.simulation => SimulationPage(c),
   AppPage.params => ParamsPage(c),
   AppPage.board => BoardPage(c),
   AppPage.test => TestPage(c),
@@ -153,12 +149,11 @@ class _TopBar extends StatelessWidget {
     final busy = c.connected || c.job != null;
     final link = c.linkStatus;
     final selected = c.selectedPort ?? '';
-    final network = selected.startsWith('udp:') || selected.startsWith('tcp:');
+    final network = isNetworkLink(selected);
     final items = <String, String>{
       for (final p in c.ports) p.id: _portLabel(p),
       for (final r in c.recentLinks)
-        if (!c.ports.any((p) => p.id == r.id) && (r.id.startsWith('udp:') || r.id.startsWith('tcp:')))
-          r.id: networkLabel(r.id),
+        if (!c.ports.any((p) => p.id == r.id) && (isNetworkLink(r.id))) r.id: networkLabel(r.id),
       if (selected.isNotEmpty && !c.ports.any((p) => p.id == selected)) selected: networkLabel(selected),
     };
     return Container(
@@ -196,7 +191,7 @@ class _TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Tooltip(
-            message: tr('Network link (UDP / TCP) or simulator…'),
+            message: tr('UDP link…'),
             child: IconButton(
               onPressed: busy ? null : () => showNetworkDialog(context, c),
               icon: const Icon(Icons.lan_outlined, size: 20),
@@ -311,96 +306,56 @@ class _Picker<T> extends StatelessWidget {
   }
 }
 
-/// UDP / TCP links, simulator presets and recent links.
+/// UDP listener on a chosen port, and recent links.
 Future<void> showNetworkDialog(BuildContext context, BoardController c) async {
-  final host = TextEditingController(text: '127.0.0.1');
-  final port = TextEditingController(text: '5760');
-  var udp = false;
+  final port = TextEditingController(text: '${DeviceTransportFactory.udpPort}');
   final id = await showDialog<String>(
     context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) {
-        String build() => udp ? 'udp:${port.text.trim()}' : 'tcp:${host.text.trim()}:${port.text.trim()}';
-        return AlertDialog(
-          title: Text(tr('Network link'), style: Theme.of(context).textTheme.titleMedium),
-          content: SizedBox(
-            width: 440,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Muted(tr('Simulators and bridges')),
-                const SizedBox(height: 6),
-                for (final (preset, label) in networkPresets)
-                  ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.computer, size: 18),
-                    title: Text(label),
-                    subtitle: Text(preset, style: monoStyle.copyWith(fontSize: 11, color: AppColors.muted)),
-                    onTap: () => Navigator.pop(context, preset),
-                  ),
-                if (c.recentLinks.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Muted(tr('Recent')),
-                  for (final r in c.recentLinks.take(5))
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.history, size: 18),
-                      title: Text(r.id.startsWith('udp:') || r.id.startsWith('tcp:') ? networkLabel(r.id) : r.id),
-                      subtitle: r.id.startsWith('udp:') || r.id.startsWith('tcp:') ? null : Text('${r.baud} baud'),
-                      onTap: () => Navigator.pop(context, '${r.id}|${r.baud}'),
-                    ),
-                ],
-                const Divider(height: 24),
-                Row(
-                  children: [
-                    SegmentedButton<bool>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('TCP')),
-                        ButtonSegment(value: true, label: Text('UDP')),
-                      ],
-                      selected: {udp},
-                      onSelectionChanged: (s) => setState(() {
-                        udp = s.first;
-                        port.text = udp ? '14550' : '5760';
-                      }),
-                    ),
-                    const SizedBox(width: 10),
-                    if (!udp)
-                      Expanded(
-                        child: TextField(
-                          controller: host,
-                          decoration: InputDecoration(hintText: tr('Host')),
-                        ),
-                      ),
-                    if (!udp) const SizedBox(width: 8),
-                    SizedBox(
-                      width: 90,
-                      child: TextField(
-                        controller: port,
-                        decoration: InputDecoration(hintText: tr('Port')),
-                      ),
-                    ),
-                  ],
+    builder: (context) => AlertDialog(
+      title: Text(tr('UDP link'), style: Theme.of(context).textTheme.titleMedium),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (c.recentLinks.isNotEmpty) ...[
+              Muted(tr('Recent')),
+              for (final r in c.recentLinks.take(5))
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.history, size: 18),
+                  title: Text(isNetworkLink(r.id) ? networkLabel(r.id) : r.id),
+                  subtitle: isNetworkLink(r.id) ? null : Text('${r.baud} baud'),
+                  onTap: () => Navigator.pop(context, '${r.id}|${r.baud}'),
                 ),
-                const SizedBox(height: 6),
-                Muted(
-                  udp ? tr('Listens on this port and replies to whoever sends.') : tr('Connects to host:port.'),
-                  size: 12,
+              const Divider(height: 24),
+            ],
+            Row(
+              children: [
+                Text(tr('UDP port')),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 110,
+                  child: TextField(
+                    controller: port,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(hintText: tr('Port')),
+                  ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
-            FilledButton(onPressed: () => Navigator.pop(context, build()), child: Text(tr('Connect'))),
+            const SizedBox(height: 6),
+            Muted(tr('Listens on this port and replies to whoever sends.'), size: 12),
           ],
-        );
-      },
+        ),
+      ),
+      actions: [
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(context, 'udp:${port.text.trim()}'), child: Text(tr('Connect'))),
+      ],
     ),
   );
-  host.dispose();
   port.dispose();
   if (id == null) return;
   final parts = id.split('|');
@@ -828,10 +783,7 @@ class _StatusBar extends StatelessWidget {
             ),
           if (c.connected && device.isNotEmpty) ...[
             const SizedBox(width: 16),
-            Muted(
-              device.startsWith('udp:') || device.startsWith('tcp:') ? device : '$device @ ${c.portBaud}',
-              size: 12,
-            ),
+            Muted(isNetworkLink(device) ? device : '$device @ ${c.portBaud}', size: 12),
           ],
           const SizedBox(width: 12),
           Tooltip(

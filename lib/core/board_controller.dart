@@ -48,7 +48,6 @@ const int outboxMax = 2000; // frames waiting for a slow link
 enum AppPage {
   // vehicle
   overview,
-  map,
   messages,
   firmware,
   // setup
@@ -65,7 +64,6 @@ enum AppPage {
   params,
   logs,
   files,
-  simulation,
   // Lectron Pi5-H7 board test
   board,
   test,
@@ -108,7 +106,8 @@ class BoardController extends ChangeNotifier {
     for (final line in (storage.getString('recent') ?? '').split('\n')) {
       final parts = line.split('|');
       final baud = parts.length == 2 ? int.tryParse(parts[1]) : null;
-      if (baud != null) recentLinks.add(RecentLink(parts[0], baud));
+      // TCP links of older versions are no longer supported
+      if (baud != null && !parts[0].startsWith('tcp:')) recentLinks.add(RecentLink(parts[0], baud));
     }
     _applyTelem3Fitted();
     messageListeners.add(_setupMessage);
@@ -166,11 +165,8 @@ class BoardController extends ChangeNotifier {
   /// Port that dropped out while connected; auto-connect opens it again when it returns.
   String? _lostPort;
 
-  /// Called with every message from the vehicle; used by the calibrations, missions, FTP and logs.
+  /// Called with every message from the vehicle; used by the calibrations, FTP and logs.
   final List<void Function(MavMessage)> messageListeners = [];
-
-  /// Run on exit, e.g. to stop a simulator started from the app.
-  final List<Future<void> Function()> shutdownHooks = [];
 
   // ---- setup (logic in controller_setup.dart) ------------------------------------------------------
 
@@ -500,7 +496,7 @@ class BoardController extends ChangeNotifier {
 
   void _connectionError(String text) {
     final device = portDevice ?? 'udp:';
-    if (this.job == null && !device.startsWith('udp:') && !device.startsWith('tcp:')) _lostPort = device;
+    if (this.job == null && !isNetworkLink(device)) _lostPort = device;
     _disconnectBoard();
     final job = this.job;
     if (job == null) {
@@ -553,7 +549,7 @@ class BoardController extends ChangeNotifier {
   void _drainOutbox() {
     final baud = portBaud ?? defaultBaud;
     final device = portDevice ?? '';
-    final serial = !device.startsWith('udp:') && !device.startsWith('tcp:');
+    final serial = !isNetworkLink(device);
     // 10 bits per byte, 80 % of the line; never less than one long frame
     _sendBudget = serial ? math.max(300, baud * tickMs ~/ 12500) : 1 << 20;
     while (_conn != null && _outbox.isNotEmpty && _sendBudget >= _outbox.first.length) {
@@ -1110,13 +1106,6 @@ class BoardController extends ChangeNotifier {
     if (_disposed) return;
     _disposed = true;
     job = null;
-    for (final hook in shutdownHooks) {
-      try {
-        await hook();
-      } catch (_) {
-        // the app is closing anyway
-      }
-    }
     _stopEthProbe();
     _ticker?.cancel();
     _noticeTimer?.cancel();

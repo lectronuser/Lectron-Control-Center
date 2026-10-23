@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lectron_control/core/app_storage.dart';
-import 'package:lectron_control/core/mission.dart';
 import 'package:lectron_control/core/recipes.dart';
 import 'package:lectron_control/core/zones.dart';
 import 'package:lectron_control/ui/map_tiles.dart';
@@ -50,23 +49,6 @@ void main() {
     final k = parseKml(kml, allowed: true);
     expect(k.single.name, 'Field');
     expect(k.single.contains(40.005, 29.005), isTrue);
-  });
-
-  test('.waypoints files round trip with home', () {
-    final items = [
-      MissionItem(command: MavCmd.takeoff, alt: 20),
-      MissionItem(command: MavCmd.waypoint, lat: 40.1, lon: 29.2, alt: 30, p1: 2),
-      MissionItem(command: MavCmd.rtl),
-    ];
-    final home = MissionItem(command: MavCmd.waypoint, frame: frameGlobal, lat: 40.0, lon: 29.0, alt: 100);
-    final text = writeWaypoints(items, home);
-    expect(text.split('\n').first, 'QGC WPL 110');
-    final (back, h) = readWaypoints(text);
-    expect(h!.lat, 40.0);
-    expect(back.map((i) => i.command), [MavCmd.takeoff, MavCmd.waypoint, MavCmd.rtl]);
-    expect(back[1].p1, 2);
-    expect(back[1].lon, closeTo(29.2, 1e-8));
-    expect(() => readWaypoints('hello'), throwsFormatException);
   });
 
   test('recipes: serial port substitution and saved recipes', () {

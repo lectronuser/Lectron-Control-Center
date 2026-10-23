@@ -94,7 +94,7 @@ class _FilesPageState extends State<FilesPage> {
     _status = '${entries.length} ${tr('entries')}';
   });
 
-  /// Folder where ArduPilot looks for scripts: APM/scripts on an SD card, scripts/ in SITL.
+  /// Folder where ArduPilot looks for scripts: APM/scripts on an SD card.
   Future<String> _scriptsDir() async {
     try {
       await ftp.list('/APM');
@@ -492,7 +492,7 @@ class _FilesPageState extends State<FilesPage> {
       ),
       const SizedBox(height: 10),
       const Note(
-        'Scripts run on the vehicle: test new scripts in the simulator first. Lua guide: ardupilot.org → Lua Scripts.',
+        'Scripts run on the vehicle: test new scripts on the bench with the propellers off first. Lua guide: ardupilot.org → Lua Scripts.',
         tone: Tone.muted,
       ),
       ParamForm(c, [
