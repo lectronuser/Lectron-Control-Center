@@ -3,7 +3,7 @@
 Testing, firmware flashing and control of Lectron boards: boards that are only a flight controller
 (**ArduPilot** / **PX4**) and boards that also carry a mission computer such as a Raspberry Pi CM5. Board test with
 PDF report, flight controller setup, calibration, logs and diagnostics. Flutter desktop app, developed and tested
-on Linux. English and Turkish.
+on Linux. English interface.
 
 > Pre-release. Remove the propellers for anything that can spin a motor, and check every setting before flying.
 
@@ -12,18 +12,16 @@ on Linux. English and Turkish.
 | Group | Pages |
 |---|---|
 | **Mission Computer** | Mission computer on the board, e.g. a Raspberry Pi CM5 (in progress) |
-| **Flight Controller** | **Overview** (identity, armed state, flight mode, arm / reboot, 3D attitude, sensor health, power, GPS) · **Messages** · **Board** · **Firmware** (ArduPilot server / PX4 releases / local `.apj` `.px4` `.bin`, flashed through the bootloader with CRC check) · **Setup Wizard** (12 steps, mark done / skip) · **Calibration** (six-position accelerometer with 3D poses, compass with quality grades and failure reasons, large-vehicle compass, guided radio calibration, level / gyro / baro / airspeed, ESC, CompassMot, IMU temperature, sensor selection & EKF) · **Receiver** (protocol, live channels, flight modes with the active slot, switches learned by flipping them) · **Safety & Failsafes** (recommended set) · **Motors & Outputs** (frame / airframe, motor diagram, motor identification with a suggested fix, outputs, ESC protocol) · **Ports** · **Peripherals** (GPS, battery monitor with voltage correction, rangefinder, airspeed, flow, LEDs, buzzer, gimbal, camera) · **Guides & Recipes** (GPS, ELRS / CRSF, telemetry, HD OSD, TFmini, bi-directional DShot + notch, DroneCAN, Lua, own recipes) · **OSD Layout** (drag elements on the grid) · **Parameters** (documentation, enum / bit-mask editors, ranges, reboot-required, changed since boot, `.param` files) · **Logs** (download over MAVLink or open `.bin` / `.ulg`; summary, automatic checks, suggested changes, events, vibration, motors, hover vs battery, charts with zoom / CSV / PNG, map & replay with 3D attitude and sticks, compare two logs) · **Scripts & Files** (MAVLink FTP file manager, Lua applet library for the firmware's branch, script editor) · **Board Settings** (Ethernet and serial ports) |
+| **Flight Controller** | **Overview** (board identity and link, health tiles, arm / flight mode / reboot, 3D attitude drawn with the selected frame, power, hardware check with the devices added later and their type) · **Frame** (every ArduPilot frame or PX4 airframe as a picture; picking one writes it and reboots the board) · **Calibration** (step by step: six-position accelerometer with 3D poses, compass with quality grades and a rotation guide sphere, level / gyro / baro / airspeed, radio, ESC calibration, CompassMot) · **Receiver** (protocol, flight modes with the active slot, switches learned by flipping them, all 16 RC channels) · **Motors & Outputs** (frame / airframe, motor diagram, motor identification with a suggested fix, outputs, ESC protocol) · **Board Settings** (Ethernet and serial ports, safety & failsafes with the recommended set, port presets for GPS / ELRS / telemetry / HD OSD / rangefinder / DroneCAN, OSD layout) · **Parameters** (all parameters with documentation, enum / bit-mask editors, ranges, reboot-required, changed since boot, `.param` files; by group as forms with the initial tune and sensor selection & EKF; peripherals: GPS, battery monitor, rangefinder, airspeed, flow, LEDs, buzzer, gimbal, camera) · **Logs** (download over MAVLink or open `.bin` / `.ulg`; summary, automatic checks, suggested changes, events, vibration, motors, hover vs battery, charts with zoom / CSV / PNG, map & replay with 3D attitude and sticks, compare two logs) · **Messages** · **Firmware** (local `.apj` / `.px4` / `.bin` file, flashed through the bootloader with board ID and CRC check) |
 | **Report & Test** | **Port Test** with PDF report · **Motor Test** · **Live Data** |
-| **App** | Language, auto-connect, banners, folders |
+| **App** | Auto-connect, banners, folders |
 
-Everywhere: serial links (USB or UART), recent ports and auto-connect; a vehicle
-status strip (firmware with beta / dev warning, armed, mode, GPS, battery against its thresholds, PreArm reasons,
-Reboot required); staged changes with one **Write** / **Discard** bar; **Ctrl+K** search over pages and parameter
+Everywhere: serial links (USB or UART), recent ports and auto-connect (on Settings); staged changes with one **Write** / **Discard** bar; **Ctrl+K** search over pages and parameter
 descriptions; inspection dock (**Ctrl+J**) with pinned values and 30 s graphs; yellow banners for missing sensors
 and calibrations; a readiness check on disconnect.
 
 Parameter documentation comes from `autotest.ardupilot.org` (ArduPilot) and the PX4 parameter metadata, downloaded
-once and cached for offline use. Map tiles, the firmware list and Lua applets are cached the same way.
+once and cached for offline use. Map tiles are cached the same way.
 
 ## Run
 
@@ -56,7 +54,7 @@ flutter test
 ## Layout
 
 - `lib/core/` link, MAVLink state and the controller (`board_controller.dart` with its `controller_*.dart` parts),
-  parameter documentation, MAVLink FTP, firmware flashing, zones, recipes
+  parameter documentation, firmware flashing, zones, port presets
 - `lib/logs/` DataFlash and ULog parsers, log analysis, MAVLink log download
-- `lib/ui/` shell, pages, shared widgets, charts, map tiles, translations (`strings_tr.dart`)
+- `lib/ui/` shell, pages, shared widgets, charts, map tiles
 - `lib/board/`, `lib/report/` Lectron Pi5-H7 board data and the PDF test report

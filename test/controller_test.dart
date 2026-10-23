@@ -52,6 +52,20 @@ void main() {
     expect((row.status, row.tone), ('Missing', Tone.err));
   });
 
+  boardTest('devices added to the board are listed with their type, the onboard ones are not', (tester, h) async {
+    h.board.params['COMPASS_DEV_ID2'] = devId(bus: 1, busNum: 1, address: 0x0E, type: 0x0A);
+    h.board.params['COMPASS_EXTERN2'] = 1;
+    await h.connect(tester);
+    await h.run(tester, 1);
+    final rows = h.controller.addedDeviceRows();
+    final compass = rows.firstWhere((r) => r.item.startsWith('Compass 2'));
+    expect(compass.item, contains('IST8310'));
+    expect(compass.details, contains('external'));
+    expect(rows.any((r) => r.item.startsWith('Compass 1')), isFalse); // the onboard BMM350
+    expect(rows.any((r) => r.item.startsWith('IMU')), isFalse);
+    expect(rows.firstWhere((r) => r.item.startsWith('GPS 1')).item, contains('Auto'));
+  });
+
   boardTest('apply writes only the changed parameters, reboots and reconnects', (tester, h) async {
     final c = h.controller;
     await h.connect(tester);

@@ -1,6 +1,4 @@
-import 'dart:convert';
-
-/// A named set of parameter values for a common job, e.g. "GPS on a serial port".
+/// A named set of parameter values that sets up a port of the board, e.g. "GPS on a serial port".
 class Recipe {
   const Recipe({
     required this.id,
@@ -10,7 +8,6 @@ class Recipe {
     this.firmware = 'ardupilot',
     this.serial = false,
     this.notes = const [],
-    this.custom = false,
   });
 
   final String id;
@@ -24,42 +21,14 @@ class Recipe {
   final String firmware;
   final bool serial;
   final List<String> notes;
-  final bool custom;
 
   /// The values for serial port [port] (ArduPilot SERIALn numbering).
   Map<String, num> resolve({int? port}) => {
     for (final e in values.entries) (port == null ? e.key : e.key.replaceAll('SERIALn_', 'SERIAL${port}_')): e.value,
   };
-
-  Map<String, Object> toJson() => {
-    'id': id,
-    'title': title,
-    'description': description,
-    'firmware': firmware,
-    'values': values,
-  };
-
-  static Recipe fromJson(Map<String, dynamic> json) => Recipe(
-    id: '${json['id']}',
-    title: '${json['title']}',
-    description: '${json['description'] ?? ''}',
-    firmware: '${json['firmware'] ?? 'any'}',
-    values: {for (final e in (json['values'] as Map).entries) '${e.key}': (e.value as num)},
-    custom: true,
-  );
 }
 
-String encodeRecipes(List<Recipe> recipes) => jsonEncode([for (final r in recipes) r.toJson()]);
-
-List<Recipe> decodeRecipes(String? text) {
-  if (text == null || text.isEmpty) return [];
-  try {
-    return [for (final r in jsonDecode(text) as List) Recipe.fromJson(Map<String, dynamic>.from(r as Map))];
-  } catch (_) {
-    return [];
-  }
-}
-
+/// Ready-made port setups offered on Board Settings.
 const List<Recipe> builtinRecipes = [
   Recipe(
     id: 'ap_gps_serial',
@@ -90,7 +59,7 @@ const List<Recipe> builtinRecipes = [
     description: 'DJI / Walksnail / HDZero goggles OSD over MSP DisplayPort.',
     serial: true,
     values: {'SERIALn_PROTOCOL': 42, 'SERIALn_BAUD': 115, 'OSD_TYPE': 5},
-    notes: ['Reboot after writing, then arrange the elements on the OSD Layout page.'],
+    notes: ['Reboot after writing, then arrange the elements on the OSD Layout tab.'],
   ),
   Recipe(
     id: 'ap_tfmini',
@@ -98,40 +67,7 @@ const List<Recipe> builtinRecipes = [
     description: 'Downward rangefinder on a UART.',
     serial: true,
     values: {'SERIALn_PROTOCOL': 9, 'SERIALn_BAUD': 115, 'RNGFND1_TYPE': 20, 'RNGFND1_ORIENT': 25},
-    notes: ['Check the minimum / maximum distance on the Peripherals page.'],
-  ),
-  Recipe(
-    id: 'ap_bdshot',
-    title: 'Bi-directional DShot600 with RPM notch',
-    description: 'Digital ESC protocol with RPM telemetry feeding the harmonic notch filter (motors 1–4).',
-    values: {
-      'MOT_PWM_TYPE': 6,
-      'SERVO_BLH_BDMASK': 15,
-      'SERVO_BLH_POLES': 14,
-      'INS_HNTCH_ENABLE': 1,
-      'INS_HNTCH_MODE': 3,
-      'INS_HNTCH_OPTS': 2,
-      'INS_HNTCH_FREQ': 80,
-      'INS_HNTCH_BW': 40,
-    },
-    notes: [
-      'Needs ESCs with bi-directional DShot firmware (BLHeli32, AM32, Bluejay).',
-      'SERVO_BLH_POLES is the motor magnet count: count the magnets on the bell.',
-      'Reboot twice: the notch settings appear after the first reboot.',
-    ],
-  ),
-  Recipe(
-    id: 'ap_notch_throttle',
-    title: 'Harmonic notch filter (throttle based)',
-    description: 'Notch filter that follows the throttle; for ESCs without RPM telemetry.',
-    values: {
-      'INS_HNTCH_ENABLE': 1,
-      'INS_HNTCH_MODE': 1,
-      'INS_HNTCH_FREQ': 80,
-      'INS_HNTCH_BW': 40,
-      'INS_HNTCH_REF': 0.35,
-    },
-    notes: ['Set INS_HNTCH_REF to MOT_THST_HOVER after a hover flight.', 'Reboot after writing.'],
+    notes: ['Check the minimum / maximum distance on Parameters > Peripherals.'],
   ),
   Recipe(
     id: 'ap_dronecan',
@@ -139,19 +75,6 @@ const List<Recipe> builtinRecipes = [
     description: 'Enables DroneCAN on the first CAN port and selects a DroneCAN GPS.',
     values: {'CAN_P1_DRIVER': 1, 'CAN_D1_PROTOCOL': 1, 'GPS1_TYPE': 9, 'GPS_TYPE': 9},
     notes: ['Reboot after writing.'],
-  ),
-  Recipe(
-    id: 'ap_lua',
-    title: 'Lua scripting',
-    description: 'Enables onboard Lua scripts (APM/scripts on the SD card).',
-    values: {'SCR_ENABLE': 1},
-    notes: ['Reboot after writing, then upload scripts on the Scripts & Files page.'],
-  ),
-  Recipe(
-    id: 'ap_bench_log',
-    title: 'Log while disarmed (bench testing)',
-    description: 'Writes logs from boot, also while disarmed. Turn it off again for flying to save SD space.',
-    values: {'LOG_DISARMED': 1},
   ),
   Recipe(
     id: 'px4_telem2',
@@ -168,20 +91,5 @@ const List<Recipe> builtinRecipes = [
     firmware: 'px4',
     values: {'GPS_2_CONFIG': 202},
     notes: ['Reboot after writing.'],
-  ),
-  Recipe(
-    id: 'px4_bdshot',
-    title: 'Bi-directional DShot with RPM notch',
-    description: 'ESC RPM telemetry over the signal wire, feeding the dynamic notch filter.',
-    firmware: 'px4',
-    values: {'DSHOT_BIDIR_EN': 1, 'IMU_GYRO_DNF_EN': 1},
-    notes: ['Select DShot on the output timers on the Motors & Outputs page.', 'Reboot after writing.'],
-  ),
-  Recipe(
-    id: 'px4_log_boot',
-    title: 'Log from boot',
-    description: 'Starts logging at boot instead of at arming.',
-    firmware: 'px4',
-    values: {'SDLOG_MODE': 1},
   ),
 ];

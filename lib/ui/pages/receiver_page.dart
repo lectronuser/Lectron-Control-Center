@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../banners.dart';
-import '../i18n.dart';
 import '../param_form.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -45,55 +44,33 @@ class ReceiverPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // one column of full-width cards, so no card is squeezed next to a taller one
     final cards = <Widget>[
-      AppCard(title: tr('Receiver'), child: _ReceiverSettings(c)),
-      AppCard(title: tr('Channels'), child: _Channels(c)),
-      AppCard(title: tr('Flight modes'), child: FlightModesPanel(c)),
-      AppCard(title: tr('Switches'), child: SwitchesPanel(c)),
+      AppCard(title: 'Receiver', child: _ReceiverSettings(c)),
+      AppCard(title: 'Flight modes', child: FlightModesPanel(c)),
+      AppCard(title: 'Switches', child: SwitchesPanel(c)),
+      AppCard(
+        title: 'RC Channels',
+        trailing: Muted(c.rc != null && c.rc!.rssi != 255 ? 'RSSI ${c.rc!.rssi}' : '', size: 12),
+        child: _Channels(c),
+      ),
     ];
     return PageFrame(
-      title: tr('Receiver'),
-      subtitle: tr('RC protocol, channels, flight modes and switches'),
+      title: 'Receiver',
+      subtitle: 'RC protocol, channels, flight modes and switches',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           IssueBanners(c, only: const {AppPage.receiver}),
           ChangedSinceBoot(c, AppPage.receiver),
-          if (c.target == null) Muted(tr('Connect a vehicle to set up its receiver')) else _TwoColumns(cards),
+          if (c.target == null)
+            Muted('Connect a vehicle to set up its receiver')
+          else
+            for (final card in cards) Padding(padding: const EdgeInsets.only(bottom: 16), child: card),
         ],
       ),
     );
   }
-}
-
-/// Cards in two columns on wide windows, one column on narrow ones.
-class _TwoColumns extends StatelessWidget {
-  const _TwoColumns(this.cards);
-  final List<Widget> cards;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, box) {
-      if (box.maxWidth < 1000) {
-        return Column(
-          children: [for (final card in cards) Padding(padding: const EdgeInsets.only(bottom: 16), child: card)],
-        );
-      }
-      final left = [for (var i = 0; i < cards.length; i += 2) cards[i]];
-      final right = [for (var i = 1; i < cards.length; i += 2) cards[i]];
-      Widget column(List<Widget> items) => Column(
-        children: [for (final card in items) Padding(padding: const EdgeInsets.only(bottom: 16), child: card)],
-      );
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: column(left)),
-          const SizedBox(width: 16),
-          Expanded(child: column(right)),
-        ],
-      );
-    },
-  );
 }
 
 class _ReceiverSettings extends StatelessWidget {
@@ -127,8 +104,8 @@ class _ReceiverSettings extends StatelessWidget {
         const SizedBox(height: 10),
         Row(
           children: [
-            Expanded(child: Muted(tr('Calibrate the stick ranges on the Calibration page.'), size: 12)),
-            TextButton(onPressed: () => c.showPage(AppPage.calibration), child: Text(tr('Calibration'))),
+            Expanded(child: Muted('Calibrate the stick ranges on the Calibration page.', size: 12)),
+            TextButton(onPressed: () => c.showPage(AppPage.calibration), child: Text('Calibration')),
           ],
         ),
       ],
@@ -143,9 +120,6 @@ class _Channels extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pwm = c.rcPwm;
-    if (pwm.isEmpty) {
-      return const Note('No RC input. Check the receiver wiring, protocol and that the transmitter is on.');
-    }
     final names = <int, String>{};
     final map = c.isPx4
         ? const {
@@ -166,11 +140,30 @@ class _Channels extends StatelessWidget {
       final ch = c.paramInt(p);
       if (ch > 0) names[ch] = label;
     });
+    // always 16 channels in two columns: the card keeps its size before and after the first RC message
+    Widget column(int first) => Column(
+      children: [for (var ch = first; ch < first + 8; ch++) PwmBar('CH$ch ${names[ch] ?? ''}'.trim(), pwm[ch] ?? 0)],
+    );
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final e in pwm.entries) PwmBar('CH${e.key} ${tr(names[e.key] ?? '')}', e.value),
-        if (c.rc != null && c.rc!.rssi != 255)
-          Padding(padding: const EdgeInsets.only(top: 8), child: Muted('RSSI ${c.rc!.rssi}')),
+        if (pwm.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 10),
+            child: Note('No RC input. Check the receiver wiring, protocol and that the transmitter is on.'),
+          ),
+        LayoutBuilder(
+          builder: (context, box) => box.maxWidth < 700
+              ? Column(children: [column(1), column(9)])
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: column(1)),
+                    const SizedBox(width: 24),
+                    Expanded(child: column(9)),
+                  ],
+                ),
+        ),
       ],
     );
   }
@@ -187,7 +180,7 @@ class FlightModesPanel extends StatelessWidget {
     final prefix = c.isPx4 ? 'COM_FLTMODE' : 'FLTMODE';
     final names = [for (var i = 1; i <= 6; i++) '$prefix$i'];
     if (!names.any(c.params.containsKey)) {
-      return Muted(c.fullLoaded ? tr('Not available on this firmware') : tr('Waiting for the parameters'));
+      return Muted(c.fullLoaded ? 'Not available on this firmware' : 'Waiting for the parameters');
     }
     const pwmRanges = ['0–1230', '1231–1360', '1361–1490', '1491–1620', '1621–1749', '1750+'];
     return Column(
@@ -214,7 +207,7 @@ class FlightModesPanel extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${tr('Mode')} ${i + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text('Mode ${i + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
                         Muted('PWM ${pwmRanges[i]}', size: 11),
                       ],
                     ),
@@ -226,10 +219,7 @@ class FlightModesPanel extends StatelessWidget {
         if (slot != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Muted(
-              '${tr('Channel')} ${slot.$1}: ${c.rcPwm[slot.$1]} µs → ${tr('mode')} ${slot.$2 + 1}',
-              size: 12,
-            ),
+            child: Muted('Channel ${slot.$1}: ${c.rcPwm[slot.$1]} µs → mode ${slot.$2 + 1}', size: 12),
           ),
       ],
     );
@@ -249,7 +239,7 @@ class SwitchesPanel extends StatelessWidget {
       final value = optionValue(c, fn.$3);
       if (value != null) c.stageParam('RC${channel}_OPTION', value);
     }
-    c.setStatus('switch', '${tr(fn.$2)} → CH$channel (${tr('staged')})', Tone.accent);
+    c.setStatus('switch', '${fn.$2} → CH$channel (staged)', Tone.accent);
   }
 
   @override
@@ -275,38 +265,36 @@ class SwitchesPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Muted(
-          tr('Press Learn, then flip the switch on the transmitter. The function is staged on that channel.'),
+          'Press Learn, then flip the switch on the transmitter. The function is staged on that channel.',
           size: 12,
         ),
         const SizedBox(height: 8),
         if (available.isEmpty)
           Muted(
-            c.paramMeta == null
-                ? tr('Needs the parameter descriptions (internet once)')
-                : tr('Not available on this firmware'),
+            c.paramMeta == null ? 'Needs the parameter descriptions (internet once)' : 'Not available on this firmware',
           ),
         for (final f in available)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 3),
             child: Row(
               children: [
-                Expanded(child: Text(tr(f.$2))),
+                Expanded(child: Text(f.$2)),
                 SizedBox(
                   width: 90,
                   child: Text(
-                    channelOf(f) == null ? tr('not set') : 'CH${channelOf(f)}',
+                    channelOf(f) == null ? 'not set' : 'CH${channelOf(f)}',
                     style: monoStyle.copyWith(color: channelOf(f) == null ? AppColors.off : AppColors.accent),
                   ),
                 ),
                 if (c.switchLearn == f.$1)
                   OutlinedButton(
                     onPressed: c.cancelLearnSwitch,
-                    child: Text(tr('Flip it now…'), style: const TextStyle(color: AppColors.warn)),
+                    child: Text('Flip it now…', style: const TextStyle(color: AppColors.warn)),
                   )
                 else
                   OutlinedButton(
                     onPressed: c.rcPwm.isEmpty ? null : () => c.learnSwitch(f.$1, (ch) => _apply(f.$1, ch)),
-                    child: Text(tr('Learn')),
+                    child: Text('Learn'),
                   ),
               ],
             ),
@@ -317,11 +305,9 @@ class SwitchesPanel extends StatelessWidget {
             type: MaterialType.transparency,
             child: ExpansionTile(
               tilePadding: EdgeInsets.zero,
-              title: Text(tr('All channel options'), style: const TextStyle(fontSize: 13)),
+              title: Text('All channel options', style: const TextStyle(fontSize: 13)),
               children: [
-                ParamForm(c, [
-                  for (var ch = 5; ch <= 16; ch++) PField.one('RC${ch}_OPTION', label: '${tr('Channel')} $ch'),
-                ]),
+                ParamForm(c, [for (var ch = 5; ch <= 16; ch++) PField.one('RC${ch}_OPTION', label: 'Channel $ch')]),
               ],
             ),
           ),

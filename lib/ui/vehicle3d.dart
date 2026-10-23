@@ -16,6 +16,7 @@ class Vehicle3D extends StatelessWidget {
     this.plane = false,
     this.highlight,
     this.motorLabels = const [],
+    this.motors,
   });
   final double roll;
   final double pitch;
@@ -27,11 +28,14 @@ class Vehicle3D extends StatelessWidget {
   /// Labels drawn at the arm tips of a multicopter, clockwise from front right.
   final List<String> motorLabels;
 
+  /// Multicopter motors as (x forward, y right, clockwise propeller), any scale; null draws a quad X.
+  final List<(double, double, bool)>? motors;
+
   @override
   Widget build(BuildContext context) => SizedBox(
     width: size,
     height: size,
-    child: CustomPaint(painter: _VehiclePainter(roll, pitch, yaw, plane, highlight, motorLabels)),
+    child: CustomPaint(painter: _VehiclePainter(roll, pitch, yaw, plane, highlight, motorLabels, motors)),
   );
 }
 
@@ -63,11 +67,19 @@ const Color _motorLight = Color(0xFF8A8A9E);
 const Color _edge = Color(0x33000000);
 
 class _VehiclePainter extends CustomPainter {
-  _VehiclePainter(this.roll, this.pitch, this.yaw, this.plane, this.highlight, this.labels);
+  _VehiclePainter(this.roll, this.pitch, this.yaw, this.plane, this.highlight, this.labels, this.motors);
   final double roll, pitch, yaw;
   final bool plane;
   final String? highlight;
   final List<String> labels;
+  final List<(double, double, bool)>? motors;
+
+  static const List<(double, double, bool)> _quadX = [
+    (0.7071, 0.7071, false),
+    (-0.7071, 0.7071, true),
+    (-0.7071, -0.7071, false),
+    (0.7071, -0.7071, true),
+  ];
 
   static const double _elev = 28 * math.pi / 180;
 
@@ -173,9 +185,19 @@ class _VehiclePainter extends CustomPainter {
   }
 
   /// Motor can with its propeller disc and two blades on top.
-  void _rotor(List<_Part> parts, double x, double y, double z, double radius, bool front, double blade) {
+  /// [below] hangs the motor under the arm, for the lower propeller of a coaxial pair.
+  void _rotor(
+    List<_Part> parts,
+    double x,
+    double y,
+    double z,
+    double radius,
+    bool front,
+    double blade, {
+    bool below = false,
+  }) {
     // can: sides sorted far to near, then the cap
-    final can = _slab(_circle(x, y, 0.075, 16), z, z + 0.12);
+    final can = below ? _slab(_circle(x, y, 0.075, 16), 0.02, 0.14) : _slab(_circle(x, y, 0.075, 16), z, z + 0.12);
     final sides = [
       for (final f in can.skip(2)) [for (final p in f) _rotate(p)],
     ]..sort((a, b) => _depth(_mean(b)).compareTo(_depth(_mean(a))));
@@ -188,7 +210,7 @@ class _VehiclePainter extends CustomPainter {
     );
     // propeller: tinted disc, blades and hub
     final tint = front ? AppColors.accent : AppColors.muted;
-    final pz = z - 0.03;
+    final pz = below ? 0.17 : z - 0.03;
     final disc = [for (final (u, v) in _circle(x, y, radius, 40)) _rotate((u, v, pz))];
     final (c, s) = (math.cos(blade), math.sin(blade));
     final (bx, by) = (-s * 0.035, c * 0.035);
@@ -295,11 +317,23 @@ class _VehiclePainter extends CustomPainter {
           _Face(arrow, AppColors.ok),
         ]),
       );
-      // X frame, clockwise from front right: arm beams, then motors and propellers
-      const arms = [(0.74, 0.74), (-0.74, 0.74), (-0.74, -0.74), (0.74, -0.74)];
+      // arms scaled to a common reach, propellers as large as the gaps between motors allow
+      final list = motors == null || motors!.isEmpty ? _quadX : motors!;
+      final reach = list.map((m) => math.sqrt(m.$1 * m.$1 + m.$2 * m.$2)).fold<double>(0.01, math.max);
+      final arms = [for (final (x, y, cw) in list) (x / reach * 0.74, y / reach * 0.74, cw)];
+      var gap = double.infinity;
       for (var i = 0; i < arms.length; i++) {
-        final (x, y) = arms[i];
-        final len = math.sqrt(x * x + y * y);
+        for (var j = i + 1; j < arms.length; j++) {
+          final d = math.sqrt(math.pow(arms[i].$1 - arms[j].$1, 2) + math.pow(arms[i].$2 - arms[j].$2, 2));
+          if (d > 0.05) gap = math.min(gap, d);
+        }
+      }
+      final radius = math.min(0.34, gap * 0.48);
+      for (var i = 0; i < arms.length; i++) {
+        final (x, y, cw) = arms[i];
+        // the second motor at the same place is the lower one of a coaxial pair
+        final below = arms.take(i).any((a) => (a.$1 - x).abs() < 0.05 && (a.$2 - y).abs() < 0.05);
+        final len = math.max(math.sqrt(x * x + y * y), 0.01);
         final (dx, dy) = (x / len, y / len);
         final (nx, ny) = (-dy * 0.04, dx * 0.04);
         final (sx, sy) = (dx * 0.2, dy * 0.2);
@@ -309,8 +343,8 @@ class _VehiclePainter extends CustomPainter {
           _frameDark,
           _frameLight,
         );
-        _rotor(parts, x, y, -0.12, 0.34, x > 0, (i.isEven ? 1 : -1) * math.pi / 5);
-        tips.add((x, y, -0.15));
+        _rotor(parts, x, y, -0.12, radius, x > 0.05, (cw ? 1 : -1) * math.pi / 5, below: below);
+        tips.add((x, y, below ? 0.2 : -0.15));
       }
     }
 
@@ -384,7 +418,8 @@ class _VehiclePainter extends CustomPainter {
       old.yaw != yaw ||
       old.highlight != highlight ||
       old.plane != plane ||
-      old.labels != labels;
+      old.labels != labels ||
+      old.motors != motors;
 }
 
 /// Artificial horizon with the heading underneath.
@@ -457,4 +492,107 @@ class _HorizonPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HorizonPainter old) => old.roll != roll || old.pitch != pitch || old.yaw != yaw;
+}
+
+/// Heading on a compass rose: N, E, S, W fixed, the arrow turns with the yaw (degrees).
+class CompassRose extends StatelessWidget {
+  const CompassRose({super.key, required this.yaw, this.size = 180});
+  final double yaw;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size,
+    height: size,
+    child: CustomPaint(painter: _RosePainter(yaw)),
+  );
+}
+
+/// Eight-point name of a heading, e.g. 74° -> E.
+String headingName(double yaw) {
+  const names = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return names[((yaw % 360 + 360) % 360 / 45).round() % 8];
+}
+
+class _RosePainter extends CustomPainter {
+  _RosePainter(this.yaw);
+  final double yaw;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide / 2 - 2;
+    canvas.drawCircle(c, r, Paint()..color = AppColors.surface2);
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..color = AppColors.borderStrong
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    // ticks every 10°, longer every 30°
+    for (var d = 0; d < 360; d += 10) {
+      final a = d * math.pi / 180;
+      final dir = Offset(math.sin(a), -math.cos(a));
+      final major = d % 30 == 0;
+      canvas.drawLine(
+        c + dir * (r - (major ? 12 : 6)),
+        c + dir * (r - 2),
+        Paint()
+          ..color = major ? AppColors.muted : AppColors.border
+          ..strokeWidth = major ? 2 : 1,
+      );
+    }
+    for (final (label, d) in const [('N', 0), ('E', 90), ('S', 180), ('W', 270)]) {
+      final a = d * math.pi / 180;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            color: label == 'N' ? AppColors.err : AppColors.text,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Roboto',
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final at = c + Offset(math.sin(a), -math.cos(a)) * (r - 26);
+      tp.paint(canvas, at - Offset(tp.width / 2, tp.height / 2));
+    }
+    // needle: bright arrowhead on the nose side, a thin dim tail behind
+    final a = yaw * math.pi / 180;
+    final dir = Offset(math.sin(a), -math.cos(a));
+    final side = Offset(-dir.dy, dir.dx);
+    final tip = c + dir * (r - 34);
+    final tail = c - dir * (r * 0.42);
+    final base = c + dir * (r * 0.18);
+    canvas.drawPath(
+      Path()
+        ..moveTo((c + side * 4).dx, (c + side * 4).dy)
+        ..lineTo((tail + side * 2.5).dx, (tail + side * 2.5).dy)
+        ..lineTo((tail - side * 2.5).dx, (tail - side * 2.5).dy)
+        ..lineTo((c - side * 4).dx, (c - side * 4).dy)
+        ..close(),
+      Paint()..color = AppColors.off,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo((c + side * 4).dx, (c + side * 4).dy)
+        ..lineTo((base + side * 4).dx, (base + side * 4).dy)
+        ..lineTo((base + side * 11).dx, (base + side * 11).dy)
+        ..lineTo(tip.dx, tip.dy)
+        ..lineTo((base - side * 11).dx, (base - side * 11).dy)
+        ..lineTo((base - side * 4).dx, (base - side * 4).dy)
+        ..lineTo((c - side * 4).dx, (c - side * 4).dy)
+        ..close(),
+      Paint()..color = AppColors.warn,
+    );
+    canvas.drawCircle(c, 6, Paint()..color = AppColors.text);
+    canvas.drawCircle(c, 3, Paint()..color = AppColors.bg);
+  }
+
+  @override
+  bool shouldRepaint(_RosePainter old) => old.yaw != yaw;
 }

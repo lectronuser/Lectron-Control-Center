@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../core/board_controller.dart';
 import '../core/models.dart';
 import '../core/param_meta.dart';
-import 'i18n.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -44,9 +43,7 @@ class ParamForm extends StatelessWidget {
           ParamRow(c, name, label: f.label, hint: f.hint, options: f.options, labelWidth: labelWidth),
     ];
     if (rows.isEmpty) {
-      return Muted(
-        c.fullLoaded ? (emptyText ?? tr('Not available on this firmware')) : tr('Waiting for the parameters'),
-      );
+      return Muted(c.fullLoaded ? (emptyText ?? 'Not available on this firmware') : 'Waiting for the parameters');
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
   }
@@ -64,9 +61,9 @@ class ParamRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final meta = c.metaFor(name);
-    final title = label != null ? tr(label!) : (meta?.title.isNotEmpty ?? false ? meta!.title : name);
+    final title = label != null ? label! : (meta?.title.isNotEmpty ?? false ? meta!.title : name);
     final staged = c.isStaged(name);
-    final description = [if (hint != null) tr(hint!), if (meta != null) meta.description].join('\n\n');
+    final description = [?hint, if (meta != null) meta.description].join('\n\n');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -137,7 +134,7 @@ class ParamEditor extends StatelessWidget {
           onPressed: readOnly ? null : () => showBitmaskDialog(context, c, name, meta),
           style: staged ? OutlinedButton.styleFrom(foregroundColor: AppColors.accent) : null,
           child: Text(
-            on.isEmpty ? tr('None') : (on.length <= 2 ? on.join(', ') : '${on.length} ${tr('selected')}'),
+            on.isEmpty ? 'None' : (on.length <= 2 ? on.join(', ') : '${on.length} selected'),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -181,7 +178,7 @@ class ParamEditor extends StatelessWidget {
             if (problem != null) ...[
               const SizedBox(width: 8),
               Flexible(
-                child: Text(tr(problem), style: const TextStyle(color: AppColors.err, fontSize: 12)),
+                child: Text(problem, style: const TextStyle(color: AppColors.err, fontSize: 12)),
               ),
             ] else if (meta?.min != null && meta?.max != null) ...[
               const SizedBox(width: 8),
@@ -220,7 +217,7 @@ Future<void> showBitmaskDialog(BuildContext context, BoardController c, String n
                 ],
               ),
             ),
-            actions: [FilledButton(onPressed: () => Navigator.pop(context), child: Text(tr('Close')))],
+            actions: [FilledButton(onPressed: () => Navigator.pop(context), child: Text('Close'))],
           );
         },
       ),
@@ -311,12 +308,12 @@ class StageButton extends StatelessWidget {
     };
     return Tooltip(
       message: changes.isEmpty
-          ? tr('Already set')
+          ? 'Already set'
           : changes.entries.map((e) => '${e.key} = ${formatParam(e.value)}').join('\n'),
       child: OutlinedButton.icon(
         onPressed: changes.isEmpty ? null : () => c.stageAll(changes),
         icon: Icon(icon, size: 16),
-        label: Text(tr(label)),
+        label: Text(label),
       ),
     );
   }
@@ -340,7 +337,7 @@ class Note extends StatelessWidget {
           Icon(icon ?? (tone == Tone.warn ? Icons.warning_amber : Icons.info_outline), size: 16, color: color),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(tr(text), style: TextStyle(color: color, fontSize: 12.5)),
+            child: Text(text, style: TextStyle(color: color, fontSize: 12.5)),
           ),
         ],
       ),
@@ -373,7 +370,7 @@ class ParamSections extends StatelessWidget {
       for (final s in sections)
         if (s.always || !c.fullLoaded || s.fields.any((f) => f.resolve(c) != null))
           AppCard(
-            title: tr(s.title),
+            title: s.title,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

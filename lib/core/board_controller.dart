@@ -49,27 +49,20 @@ enum AppPage {
   // mission computer
   missionComputer,
   // flight controller
-  overview,
-  messages,
-  firmware,
-  wizard,
+  board,
+  frame,
+  live,
   calibration,
   receiver,
-  safety,
   outputs,
-  ports,
-  peripherals,
-  recipes,
-  osd,
   params,
   logs,
-  files,
-  board,
   settings,
+  messages,
+  firmware,
   // report and test
   test,
   motors,
-  live,
   // app
   app,
 }
@@ -97,7 +90,6 @@ class BoardController extends ChangeNotifier {
     _preferredPort = selectedPort = storage.getString('port');
     final baud = storage.getInt('baud');
     selectedBaud = baud != null && baudRates.contains(baud) ? baud : defaultBaud;
-    language = storage.getString('language') ?? 'en';
     autoConnect = storage.getBool('autoConnect') ?? true;
     dockOpen = storage.getBool('dock') ?? false;
     for (final key in (storage.getString('pins') ?? '').split('\n')) {
@@ -153,11 +145,10 @@ class BoardController extends ChangeNotifier {
   int? portBaud;
 
   bool get connected => _conn != null;
-  AppPage page = AppPage.overview;
+  AppPage page = AppPage.board;
 
   // ---- app-wide state (logic in controller_vehicle.dart) ----------------------------------------
 
-  String language = 'en';
   bool autoConnect = true;
   bool dockOpen = false;
   final List<RecentLink> recentLinks = [];

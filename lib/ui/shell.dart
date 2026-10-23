@@ -3,33 +3,24 @@ import 'package:flutter/services.dart';
 
 import '../board/board_data.dart';
 import '../core/board_controller.dart';
-import '../core/models.dart';
 import '../core/transport.dart';
 import 'dock.dart';
-import 'i18n.dart';
 import 'pages.dart';
 import 'pages/app_settings_page.dart';
 import 'pages/board_page.dart';
 import 'pages/calibration_page.dart';
-import 'pages/files_page.dart';
 import 'pages/firmware_page.dart';
+import 'pages/frame_page.dart';
 import 'pages/live_page.dart';
 import 'pages/logs_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/mission_computer_page.dart';
 import 'pages/motors_page.dart';
-import 'pages/osd_page.dart';
 import 'pages/outputs_page.dart';
-import 'pages/overview_page.dart';
 import 'pages/params_page.dart';
-import 'pages/peripherals_page.dart';
-import 'pages/ports_page.dart';
 import 'pages/receiver_page.dart';
-import 'pages/recipes_page.dart';
-import 'pages/safety_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/test_page.dart';
-import 'pages/wizard_page.dart';
 import 'search.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -78,13 +69,11 @@ class _ShellState extends State<Shell> {
         child: ListenableBuilder(
           listenable: c,
           builder: (context, _) {
-            appLanguage = c.language;
             return Scaffold(
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _TopBar(c, onSearch: _openSearch),
-                  if (c.target != null) VehicleStrip(c),
                   Expanded(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -115,19 +104,12 @@ class _ShellState extends State<Shell> {
 }
 
 Widget _page(BoardController c) => switch (c.page) {
-  AppPage.overview => OverviewPage(c),
   AppPage.messages => MessagesPage(c),
   AppPage.missionComputer => MissionComputerPage(c),
-  AppPage.wizard => WizardPage(c),
+  AppPage.frame => FramePage(c),
   AppPage.calibration => CalibrationPage(c),
   AppPage.receiver => ReceiverPage(c),
-  AppPage.safety => SafetyPage(c),
   AppPage.outputs => OutputsPage(c),
-  AppPage.ports => PortsPage(c),
-  AppPage.peripherals => PeripheralsPage(c),
-  AppPage.recipes => RecipesPage(c),
-  AppPage.osd => OsdPage(c),
-  AppPage.files => FilesPage(c),
   AppPage.logs => LogsPage(c),
   AppPage.firmware => FirmwarePage(c),
   AppPage.params => ParamsPage(c),
@@ -167,7 +149,7 @@ class _TopBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(productName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              Muted(tr('Board test, firmware and control'), size: 11),
+              Muted('Board test, firmware and control', size: 11),
             ],
           ),
           const Spacer(),
@@ -177,7 +159,7 @@ class _TopBar extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 360),
               child: _Picker<String?>(
                 value: items.containsKey(c.selectedPort) ? c.selectedPort : null,
-                hint: tr('No ports found'),
+                hint: 'No ports found',
                 enabled: !busy,
                 items: items,
                 onChanged: c.selectPort,
@@ -188,7 +170,7 @@ class _TopBar extends StatelessWidget {
           SizedBox(
             width: 104,
             child: Tooltip(
-              message: tr('Baud rate'),
+              message: 'Baud rate',
               child: _Picker<int>(
                 value: c.selectedBaud,
                 enabled: !busy,
@@ -204,24 +186,13 @@ class _TopBar extends StatelessWidget {
               style: busy ? FilledButton.styleFrom(backgroundColor: AppColors.err) : null,
               onPressed: busy ? () => _disconnect(context, c) : (c.selectedPort != null ? c.toggleConnection : null),
               icon: Icon(busy ? Icons.link_off : Icons.usb, size: 16),
-              label: Text(c.connected ? tr('Disconnect') : (c.job != null ? tr('Cancel') : tr('Connect'))),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Tooltip(
-            message: tr('Auto-connect: open a flight controller as soon as it is plugged in'),
-            child: FilterChip(
-              label: Text(tr('Auto'), style: const TextStyle(fontSize: 12)),
-              selected: c.autoConnect,
-              showCheckmark: false,
-              avatar: Icon(c.autoConnect ? Icons.bolt : Icons.bolt_outlined, size: 16),
-              onSelected: c.setAutoConnect,
+              label: Text(c.connected ? 'Disconnect' : (c.job != null ? 'Cancel' : 'Connect')),
             ),
           ),
           const SizedBox(width: 10),
           SizedBox(
             width: 150,
-            child: Align(alignment: Alignment.centerRight, child: StatusChip(tr(link.text), link.tone, dot: true)),
+            child: Align(alignment: Alignment.centerRight, child: StatusChip(link.text, link.tone, dot: true)),
           ),
         ],
       ),
@@ -232,7 +203,7 @@ class _TopBar extends StatelessWidget {
 String _portLabel(PortInfo p) => switch (p.kind) {
   PortKind.ardupilot => '${p.label}   [ArduPilot]',
   PortKind.px4 => '${p.label}   [PX4 / Pixhawk]',
-  PortKind.radio => '${p.label}   [${tr('Radio')}]',
+  PortKind.radio => '${p.label}   [Radio]',
   _ => p.label,
 };
 
@@ -242,9 +213,9 @@ Future<void> _disconnect(BuildContext context, BoardController c) async {
   if (issues.isNotEmpty) {
     final go = await confirm(
       context,
-      tr('Before you unplug'),
-      '${tr('These need attention before flying:')}\n\n${issues.map((i) => '•  $i').join('\n')}',
-      action: tr('Disconnect anyway'),
+      'Before you unplug',
+      'These need attention before flying:\n\n${issues.map((i) => '•  $i').join('\n')}',
+      action: 'Disconnect anyway',
     );
     if (!go) return;
   }
@@ -293,74 +264,7 @@ class _Picker<T> extends StatelessWidget {
   }
 }
 
-// ---- vehicle status strip -------------------------------------------------------------------------
-
-/// Firmware, armed state, flight mode, GPS, battery, PreArm reasons and "Reboot required".
-class VehicleStrip extends StatelessWidget {
-  const VehicleStrip(this.c, {super.key});
-  final BoardController c;
-
-  @override
-  Widget build(BuildContext context) {
-    final hb = c.hb;
-    final fw = c.firmwareChip;
-    final prearm = c.prearmReasons;
-    final ready = c.prearmHealthy;
-    final board = c.version['board'];
-    return Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: const BoxDecoration(
-        color: AppColors.bg,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            if (board != null) ...[Muted(board, size: 12), const SizedBox(width: 10)],
-            if (fw != null)
-              Tooltip(
-                message: fw.$2 ? tr('Pre-release firmware: test carefully before flying') : '',
-                child: StatusChip(fw.$2 ? '${fw.$1}  ${tr('BETA/DEV')}' : fw.$1, fw.$2 ? Tone.warn : Tone.muted),
-              ),
-            const SizedBox(width: 8),
-            if (hb != null) StatusChip(hb.armed ? tr('ARMED') : tr('Disarmed'), hb.armed ? Tone.err : Tone.ok),
-            const SizedBox(width: 8),
-            if (hb != null) StatusChip(hb.mode, Tone.accent),
-            const SizedBox(width: 8),
-            StatusChip(c.gpsChip.text, c.gpsChip.tone),
-            const SizedBox(width: 8),
-            StatusChip(c.batteryChip.text, c.batteryChip.tone),
-            const SizedBox(width: 8),
-            InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => showPrearmDialog(context, c),
-              child: StatusChip(
-                prearm.isNotEmpty
-                    ? 'PreArm · ${prearm.length}'
-                    : (ready == true ? tr('Ready to arm') : (ready == false ? tr('PreArm failing') : 'PreArm')),
-                prearm.isNotEmpty || ready == false ? Tone.err : (ready == true ? Tone.ok : Tone.muted),
-              ),
-            ),
-            if (c.rebootRequired) ...[
-              const SizedBox(width: 8),
-              InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: c.job == null ? c.rebootBoard : null,
-                child: Tooltip(
-                  message: tr('Some changes only take effect after a reboot. Click to reboot.'),
-                  child: StatusChip(tr('Reboot required'), Tone.warn, dot: true),
-                ),
-              ),
-            ],
-            if (c.paramMetaStatus.isNotEmpty) ...[const SizedBox(width: 12), Muted(tr(c.paramMetaStatus), size: 12)],
-          ],
-        ),
-      ),
-    );
-  }
-}
+// ---- arming checks --------------------------------------------------------------------------------
 
 Future<void> showPrearmDialog(BuildContext context, BoardController c) => showDialog<void>(
   context: context,
@@ -369,7 +273,7 @@ Future<void> showPrearmDialog(BuildContext context, BoardController c) => showDi
     builder: (context, _) {
       final reasons = c.prearmReasons;
       return AlertDialog(
-        title: Text(tr('Arming checks'), style: Theme.of(context).textTheme.titleMedium),
+        title: Text('Arming checks', style: Theme.of(context).textTheme.titleMedium),
         content: SizedBox(
           width: 520,
           child: Column(
@@ -379,8 +283,8 @@ Future<void> showPrearmDialog(BuildContext context, BoardController c) => showDi
               if (reasons.isEmpty)
                 Muted(
                   c.prearmHealthy == true
-                      ? tr('No failing checks reported. The vehicle is ready to arm.')
-                      : tr('No failing checks reported yet. Run the checks to ask the vehicle.'),
+                      ? 'No failing checks reported. The vehicle is ready to arm.'
+                      : 'No failing checks reported yet. Run the checks to ask the vehicle.',
                 ),
               for (final r in reasons)
                 Padding(
@@ -395,7 +299,7 @@ Future<void> showPrearmDialog(BuildContext context, BoardController c) => showDi
                   ),
                 ),
               const SizedBox(height: 10),
-              Muted(tr('Reasons are collected from PreArm messages of the last minute.'), size: 12),
+              Muted('Reasons are collected from PreArm messages of the last minute.', size: 12),
             ],
           ),
         ),
@@ -404,9 +308,9 @@ Future<void> showPrearmDialog(BuildContext context, BoardController c) => showDi
             OutlinedButton.icon(
               onPressed: c.runPrearmChecks,
               icon: const Icon(Icons.refresh, size: 16),
-              label: Text(tr('Run checks')),
+              label: Text('Run checks'),
             ),
-          FilledButton(onPressed: () => Navigator.pop(context), child: Text(tr('Close'))),
+          FilledButton(onPressed: () => Navigator.pop(context), child: Text('Close')),
         ],
       );
     },
@@ -476,7 +380,7 @@ class _SidebarState extends State<_Sidebar> {
                           children: [
                             const Icon(Icons.search, size: 16, color: AppColors.muted),
                             const SizedBox(width: 6),
-                            Expanded(child: Muted(tr('Search…'), size: 12)),
+                            Expanded(child: Muted('Search…', size: 12)),
                             const Muted('Ctrl+K', size: 11),
                           ],
                         ),
@@ -484,7 +388,7 @@ class _SidebarState extends State<_Sidebar> {
                     ),
                   ),
                 IconButton(
-                  tooltip: _compact ? tr('Expand sidebar') : tr('Collapse sidebar'),
+                  tooltip: _compact ? 'Expand sidebar' : 'Collapse sidebar',
                   onPressed: () {
                     setState(() => _compact = !_compact);
                     c.storage.put('sidebarCompact', _compact);
@@ -508,7 +412,7 @@ class _SidebarState extends State<_Sidebar> {
                           children: [
                             Expanded(
                               child: Text(
-                                tr(group).toUpperCase(),
+                                group.toUpperCase(),
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: AppColors.off,
@@ -568,7 +472,7 @@ class _NavButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? AppColors.accent : AppColors.muted;
-    final label = tr(info.label);
+    final label = info.label;
     final badgeWidget = badge == null
         ? null
         : Container(
@@ -585,7 +489,7 @@ class _NavButton extends StatelessWidget {
       decoration: const BoxDecoration(color: AppColors.warn, shape: BoxShape.circle),
     );
     return Tooltip(
-      message: compact ? label : (dot ? tr('Settings on this page changed since the vehicle booted') : ''),
+      message: compact ? label : (dot ? 'Settings on this page changed since the vehicle booted' : ''),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
         child: Material(
@@ -657,16 +561,16 @@ class _StagedBar extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              trf('{n} change(s) staged on this PC, not on the vehicle yet', {'n': n}),
+              '$n change(s) staged on this PC, not on the vehicle yet',
               style: const TextStyle(color: AppColors.accent, fontSize: 13),
             ),
           ),
-          OutlinedButton(onPressed: c.revertParamEdits, child: Text(tr('Discard'))),
+          OutlinedButton(onPressed: c.revertParamEdits, child: Text('Discard')),
           const SizedBox(width: 8),
           FilledButton.icon(
-            onPressed: c.target == null ? null : () => c.notify(tr(c.writeStaged().text)),
+            onPressed: c.target == null ? null : () => c.notify((c.writeStaged().text)),
             icon: const Icon(Icons.upload, size: 16),
-            label: Text(tr('Write')),
+            label: Text('Write'),
           ),
         ],
       ),
@@ -708,8 +612,8 @@ class _StatusBar extends StatelessWidget {
           if (c.connected)
             Muted(
               c.loadingAllParams
-                  ? '${tr('Parameters')} ${c.paramsReceived}/${c.paramCount}'
-                  : (c.fullLoaded ? '${c.params.length} ${tr('parameters')}' : c.paramSummary),
+                  ? 'Parameters ${c.paramsReceived}/${c.paramCount}'
+                  : (c.fullLoaded ? '${c.params.length} parameters' : c.paramSummary),
               size: 12,
             ),
           if (c.connected && device.isNotEmpty) ...[
@@ -718,7 +622,7 @@ class _StatusBar extends StatelessWidget {
           ],
           const SizedBox(width: 12),
           Tooltip(
-            message: tr('Inspection dock (Ctrl+J)'),
+            message: 'Inspection dock (Ctrl+J)',
             child: InkWell(
               onTap: c.toggleDock,
               child: Icon(
@@ -746,7 +650,7 @@ class LinkButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final action = c.connected ? onPressed : null;
-    final text = Text(tr(label));
+    final text = Text(label);
     if (primary) {
       return icon == null
           ? FilledButton(onPressed: action, child: text)

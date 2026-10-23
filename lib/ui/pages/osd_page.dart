@@ -2,23 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
-import '../i18n.dart';
 import '../param_form.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
 final RegExp _itemEn = RegExp(r'^OSD(\d)_(\w+)_EN$');
 
-/// ArduPilot OSD screens: drag the elements on a character grid; X / Y are staged.
-class OsdPage extends StatefulWidget {
-  const OsdPage(this.c, {super.key});
+/// ArduPilot OSD screens: drag the elements on a character grid; X / Y are staged. Shown on Board Settings.
+class OsdEditor extends StatefulWidget {
+  const OsdEditor(this.c, {super.key});
   final BoardController c;
 
   @override
-  State<OsdPage> createState() => _OsdPageState();
+  State<OsdEditor> createState() => _OsdEditorState();
 }
 
-class _OsdPageState extends State<OsdPage> {
+class _OsdEditorState extends State<OsdEditor> {
   int _screen = 1;
   String? _selected;
 
@@ -27,11 +26,7 @@ class _OsdPageState extends State<OsdPage> {
   @override
   Widget build(BuildContext context) {
     if (c.target != null && c.isPx4) {
-      return PageFrame(
-        title: tr('OSD Layout'),
-        subtitle: tr('On-screen display elements'),
-        child: Muted(tr('The OSD layout editor is for ArduPilot')),
-      );
+      return Muted('The OSD layout editor is for ArduPilot');
     }
     final screens = {
       for (final n in c.params.keys)
@@ -44,98 +39,94 @@ class _OsdPageState extends State<OsdPage> {
     ]..sort();
     const rows = 16; // PAL; NTSC screens use the top 13 rows
     const cols = 30;
-    return PageFrame(
-      title: tr('OSD Layout'),
-      subtitle: tr('Drag the elements on the screen; positions are staged until Write'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (c.target == null)
-            Muted(tr('Connect a vehicle to edit its OSD'))
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (c.target == null)
+          Muted('Connect a vehicle to edit its OSD')
+        else ...[
+          AppCard(
+            child: ParamForm(c, [
+              PField.one('OSD_TYPE'),
+              PField.one('OSD_CHAN'),
+              PField.one('OSD_SW_METHOD'),
+              PField.one('OSD_UNITS'),
+              PField.one('OSD_OPTIONS'),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          if (screens.isEmpty)
+            Muted(c.fullLoaded ? 'No OSD parameters: set OSD_TYPE and reboot' : 'Waiting for the parameters')
           else ...[
-            AppCard(
-              child: ParamForm(c, [
-                PField.one('OSD_TYPE'),
-                PField.one('OSD_CHAN'),
-                PField.one('OSD_SW_METHOD'),
-                PField.one('OSD_UNITS'),
-                PField.one('OSD_OPTIONS'),
-              ]),
+            SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: [for (final s in screens) ButtonSegment(value: s, label: Text('Screen $s'))],
+              selected: {_screen},
+              onSelectionChanged: (s) => setState(() {
+                _screen = s.first;
+                _selected = null;
+              }),
             ),
-            const SizedBox(height: 16),
-            if (screens.isEmpty)
-              Muted(c.fullLoaded ? tr('No OSD parameters: set OSD_TYPE and reboot') : tr('Waiting for the parameters'))
-            else ...[
-              SegmentedButton<int>(
-                showSelectedIcon: false,
-                segments: [for (final s in screens) ButtonSegment(value: s, label: Text('${tr('Screen')} $s'))],
-                selected: {_screen},
-                onSelectionChanged: (s) => setState(() {
-                  _screen = s.first;
-                  _selected = null;
-                }),
-              ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, box) {
-                  final gridWidth = (box.maxWidth - 300).clamp(360.0, 900.0);
-                  final cell = Size(gridWidth / cols, gridWidth / cols * 1.45);
-                  final grid = _Grid(
-                    c,
-                    screen: _screen,
-                    items: [
-                      for (final i in items)
-                        if ((c.stagedOr('OSD${_screen}_${i}_EN') ?? 0) != 0) i,
-                    ],
-                    cell: cell,
-                    cols: cols,
-                    rows: rows,
-                    selected: _selected,
-                    onSelect: (i) => setState(() => _selected = i),
-                  );
-                  final list = SizedBox(
-                    width: 280,
-                    height: cell.height * rows,
-                    child: AppCard(
-                      padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
-                      child: Expanded(
-                        child: ListView(
-                          children: [
-                            for (final i in items)
-                              Material(
-                                color: _selected == i ? AppColors.accent.withValues(alpha: 0.15) : Colors.transparent,
-                                child: CheckboxListTile(
-                                  dense: true,
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  value: (c.stagedOr('OSD${_screen}_${i}_EN') ?? 0) != 0,
-                                  onChanged: (v) => c.stageParam('OSD${_screen}_${i}_EN', v == true ? 1 : 0),
-                                  title: Text(i, style: monoStyle.copyWith(fontSize: 12)),
-                                  subtitle: Text(
-                                    '${formatParam(c.stagedOr('OSD${_screen}_${i}_X') ?? 0)}, ${formatParam(c.stagedOr('OSD${_screen}_${i}_Y') ?? 0)}',
-                                    style: const TextStyle(fontSize: 11, color: AppColors.muted),
-                                  ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, box) {
+                final gridWidth = (box.maxWidth - 300).clamp(360.0, 900.0);
+                final cell = Size(gridWidth / cols, gridWidth / cols * 1.45);
+                final grid = _Grid(
+                  c,
+                  screen: _screen,
+                  items: [
+                    for (final i in items)
+                      if ((c.stagedOr('OSD${_screen}_${i}_EN') ?? 0) != 0) i,
+                  ],
+                  cell: cell,
+                  cols: cols,
+                  rows: rows,
+                  selected: _selected,
+                  onSelect: (i) => setState(() => _selected = i),
+                );
+                final list = SizedBox(
+                  width: 280,
+                  height: cell.height * rows,
+                  child: AppCard(
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+                    child: Expanded(
+                      child: ListView(
+                        children: [
+                          for (final i in items)
+                            Material(
+                              color: _selected == i ? AppColors.accent.withValues(alpha: 0.15) : Colors.transparent,
+                              child: CheckboxListTile(
+                                dense: true,
+                                controlAffinity: ListTileControlAffinity.leading,
+                                value: (c.stagedOr('OSD${_screen}_${i}_EN') ?? 0) != 0,
+                                onChanged: (v) => c.stageParam('OSD${_screen}_${i}_EN', v == true ? 1 : 0),
+                                title: Text(i, style: monoStyle.copyWith(fontSize: 12)),
+                                subtitle: Text(
+                                  '${formatParam(c.stagedOr('OSD${_screen}_${i}_X') ?? 0)}, ${formatParam(c.stagedOr('OSD${_screen}_${i}_Y') ?? 0)}',
+                                  style: const TextStyle(fontSize: 11, color: AppColors.muted),
                                 ),
                               ),
-                          ],
-                        ),
+                            ),
+                        ],
                       ),
                     ),
-                  );
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [grid, const SizedBox(width: 16), list],
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              Muted(
-                tr('The grid is 30 columns wide (PAL 16 rows). Element size is approximate; check on the goggles.'),
-                size: 12,
-              ),
-            ],
+                  ),
+                );
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [grid, const SizedBox(width: 16), list],
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            Muted(
+              'The grid is 30 columns wide (PAL 16 rows). Element size is approximate; check on the goggles.',
+              size: 12,
+            ),
           ],
         ],
-      ),
+      ],
     );
   }
 }

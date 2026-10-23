@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../core/board_controller.dart';
 import '../core/models.dart';
-import 'i18n.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -51,18 +50,18 @@ class _Banner extends StatelessWidget {
           Icon(issue.tone == Tone.err ? Icons.error_outline : Icons.warning_amber, size: 18, color: color),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(tr(issue.text), style: TextStyle(color: color, fontSize: 13)),
+            child: Text(issue.text, style: TextStyle(color: color, fontSize: 13)),
           ),
           if (issue.removable)
-            TextButton(onPressed: () => c.removedOnPurpose(issue.key), child: Text(tr('Removed on purpose'))),
+            TextButton(onPressed: () => c.removedOnPurpose(issue.key), child: Text('Removed on purpose')),
           if (issue.fix != null && issue.fix != c.page)
             OutlinedButton(
               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
               onPressed: () => c.showPage(issue.fix!),
-              child: Text(tr(issue.action ?? 'Open')),
+              child: Text(issue.action ?? 'Open'),
             ),
           IconButton(
-            tooltip: tr('Hide for this session'),
+            tooltip: 'Hide for this session',
             onPressed: () => c.dismissIssue(issue.key),
             icon: const Icon(Icons.close, size: 16),
           ),
@@ -96,11 +95,11 @@ class ChangedSinceBoot extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '${tr('Changed since boot:')} ${changed.map((e) => '${e.$1} ${e.$2 == null ? '' : '(${formatParam(e.$2!)} → ${formatParam(c.params[e.$1] ?? 0)})'}').join(', ')}',
+              'Changed since boot: ${changed.map((e) => '${e.$1} ${e.$2 == null ? '' : '(${formatParam(e.$2!)} → ${formatParam(c.params[e.$1] ?? 0)})'}').join(', ')}',
               style: const TextStyle(color: AppColors.warn, fontSize: 12.5),
             ),
           ),
-          TextButton(onPressed: () => c.revertToBoot(page), child: Text(tr('Revert to boot values'))),
+          TextButton(onPressed: () => c.revertToBoot(page), child: Text('Revert to boot values')),
         ],
       ),
     );
@@ -120,7 +119,7 @@ class InfoRows extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 3.5),
           child: Row(
             children: [
-              Muted(tr(key)),
+              Muted(key),
               const SizedBox(width: 16),
               Expanded(
                 child: SelectableText(

@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../../core/param_meta.dart';
-import '../i18n.dart';
 import '../shell.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'param_tools.dart';
+import '../banners.dart';
+import 'peripherals_page.dart';
 
 const _paramFiles = XTypeGroup(label: 'Parameter files', extensions: ['param', 'parm']);
 
@@ -30,6 +32,7 @@ class _ParamsPageState extends State<ParamsPage> {
   _Filter _filter = _Filter.all;
   String? _selected;
   bool _showAdvanced = true;
+  int _tab = 0;
 
   BoardController get c => widget.c;
 
@@ -64,7 +67,7 @@ class _ParamsPageState extends State<ParamsPage> {
 
   Future<void> _saveFile() async {
     if (c.params.isEmpty) {
-      c.notify(tr('No parameters to save'));
+      c.notify('No parameters to save');
       return;
     }
     final location = await fileDialog(
@@ -74,9 +77,9 @@ class _ParamsPageState extends State<ParamsPage> {
     if (location == null) return;
     try {
       await File(location.path).writeAsString(c.paramFileText());
-      c.notify('${tr('Saved')} ${c.params.length} ${tr('parameters to')} ${location.path}');
+      c.notify('Saved ${c.params.length} parameters to ${location.path}');
     } catch (e) {
-      c.notify('${tr('Could not save:')} $e', sticky: true);
+      c.notify('Could not save: $e', sticky: true);
     }
   }
 
@@ -95,16 +98,16 @@ class _ParamsPageState extends State<ParamsPage> {
       c.applyParamFile(await file.readAsString());
       setState(() => _filter = _Filter.modified);
     } catch (e) {
-      c.notify('${tr('Could not read')} ${file.name}: $e', sticky: true);
+      c.notify('Could not read ${file.name}: $e', sticky: true);
     }
   }
 
   Future<void> _reset() async {
     if (await confirm(
       context,
-      tr('Reset Parameters'),
-      tr('Erase ALL parameters, including calibration, and reboot the vehicle?'),
-      action: tr('Erase and Reboot'),
+      'Reset Parameters',
+      'Erase ALL parameters, including calibration, and reboot the vehicle?',
+      action: 'Erase and Reboot',
       danger: true,
     )) {
       c.resetParameters();
@@ -133,8 +136,46 @@ class _ParamsPageState extends State<ParamsPage> {
     return words.every(text.contains);
   }
 
+  Widget _tabs() => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: SegmentedButton<int>(
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(value: 0, label: Text('All parameters')),
+          ButtonSegment(value: 1, label: Text('By group')),
+          ButtonSegment(value: 2, label: Text('Peripherals')),
+        ],
+        selected: {_tab},
+        onSelectionChanged: (s) => setState(() => _tab = s.first),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
+    if (_tab == 1) {
+      return PageFrame(
+        title: 'Parameters',
+        subtitle: 'Parameters as forms, one group at a time; changes are staged until Write',
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [_tabs(), ParamGroupsView(c)]),
+      );
+    }
+    if (_tab == 2) {
+      return PageFrame(
+        title: 'Parameters',
+        subtitle: 'GPS, battery monitor, rangefinder, airspeed, optical flow, LEDs, buzzer, camera and gimbal',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _tabs(),
+            IssueBanners(c, only: const {AppPage.params}),
+            PeripheralsView(c),
+          ],
+        ),
+      );
+    }
     final names = [
       for (final name in c.params.keys)
         if (_keep(name)) name,
@@ -142,20 +183,20 @@ class _ParamsPageState extends State<ParamsPage> {
     final edits = c.paramEdits.length;
     final String loadText;
     if (c.loadingAllParams) {
-      loadText = '${tr('Downloading parameters')} ${c.paramsReceived}/${c.paramCount == 0 ? '?' : c.paramCount}…';
+      loadText = 'Downloading parameters ${c.paramsReceived}/${c.paramCount == 0 ? '?' : c.paramCount}…';
     } else if (c.fullLoaded) {
-      loadText = '${c.params.length} ${tr('parameters')}';
+      loadText = '${c.params.length} parameters';
     } else {
-      loadText = c.target == null ? tr('Waiting for the vehicle') : tr('Waiting for the parameter list');
+      loadText = c.target == null ? 'Waiting for the vehicle' : 'Waiting for the parameter list';
     }
     final editStatus = c.status('paramEdit').text.isNotEmpty
         ? c.status('paramEdit')
-        : StatusText(edits > 0 ? trf('{n} parameter(s) changed, not written yet', {'n': edits}) : '', Tone.accent);
+        : StatusText(edits > 0 ? '$edits parameter(s) changed, not written yet' : '', Tone.accent);
     final columns = [
-      Col(tr('Name'), flex: 4),
-      Col(tr('Value'), width: 170),
-      Col(tr('Unit'), width: 70),
-      Col(tr('Description'), flex: 5),
+      Col('Name', flex: 4),
+      Col('Value', width: 170),
+      Col('Unit', width: 70),
+      Col('Description', flex: 5),
     ];
     final selected = _selected != null && c.params.containsKey(_selected) ? _selected : null;
     final table = AppCard(
@@ -171,7 +212,7 @@ class _ParamsPageState extends State<ParamsPage> {
                     controller: _searchText,
                     onChanged: (t) => setState(() => _search = t),
                     decoration: InputDecoration(
-                      hintText: tr('Search name or description, e.g. SERIAL1 or battery capacity'),
+                      hintText: 'Search name or description, e.g. SERIAL1 or battery capacity',
                       prefixIcon: const Icon(Icons.search, size: 18),
                       prefixIconConstraints: const BoxConstraints(minWidth: 38),
                     ),
@@ -182,17 +223,17 @@ class _ParamsPageState extends State<ParamsPage> {
                   width: 190,
                   child: EnumDropdown(
                     options: {
-                      _Filter.all.index: tr('All parameters'),
-                      _Filter.modified.index: tr('Staged changes'),
-                      _Filter.changedSinceBoot.index: tr('Changed since boot'),
-                      if (c.isPx4) _Filter.notDefault.index: tr('Not default'),
+                      _Filter.all.index: 'All parameters',
+                      _Filter.modified.index: 'Staged changes',
+                      _Filter.changedSinceBoot.index: 'Changed since boot',
+                      if (c.isPx4) _Filter.notDefault.index: 'Not default',
                     },
                     value: _filter.index,
                     onChanged: (i) => setState(() => _filter = _Filter.values[i]),
                   ),
                 ),
                 const SizedBox(width: 6),
-                CheckRow(tr('Advanced'), _showAdvanced, (v) => setState(() => _showAdvanced = v)),
+                CheckRow('Advanced', _showAdvanced, (v) => setState(() => _showAdvanced = v)),
               ],
             ),
             if (c.loadingAllParams)
@@ -211,10 +252,8 @@ class _ParamsPageState extends State<ParamsPage> {
                   ? Center(
                       child: Muted(
                         c.params.isEmpty
-                            ? (c.connected
-                                  ? tr('Waiting for the parameters')
-                                  : tr('Connect a vehicle to read its parameters'))
-                            : tr('No parameter matches'),
+                            ? (c.connected ? 'Waiting for the parameters' : 'Connect a vehicle to read its parameters')
+                            : 'No parameter matches',
                       ),
                     )
                   : ListView.builder(
@@ -237,13 +276,13 @@ class _ParamsPageState extends State<ParamsPage> {
               children: [
                 Expanded(child: StatusLine(editStatus)),
                 CheckRow(
-                  tr('Reboot after writing'),
+                  'Reboot after writing',
                   c.paramRebootAfterWrite,
                   (v) => c.edit(() => c.paramRebootAfterWrite = v),
                 ),
-                OutlinedButton(onPressed: edits > 0 ? c.revertParamEdits : null, child: Text(tr('Discard'))),
+                OutlinedButton(onPressed: edits > 0 ? c.revertParamEdits : null, child: Text('Discard')),
                 const SizedBox(width: 10),
-                FilledButton(onPressed: c.connected && edits > 0 ? c.writeParamEdits : null, child: Text(tr('Write'))),
+                FilledButton(onPressed: c.connected && edits > 0 ? c.writeParamEdits : null, child: Text('Write')),
               ],
             ),
           ],
@@ -251,14 +290,14 @@ class _ParamsPageState extends State<ParamsPage> {
       ),
     );
     return PageFrame(
-      title: tr('Parameters'),
-      subtitle: tr('Every vehicle parameter with its documentation: search, edit, write, load and save .param files'),
+      title: 'Parameters',
+      subtitle: 'Every vehicle parameter with its documentation: search, edit, write, load and save .param files',
       scroll: false,
       actions: [
         Muted(loadText),
         LinkButton(c, 'Refresh', c.loadAllParams, icon: Icons.refresh),
         PopupMenuButton<String>(
-          tooltip: tr('More'),
+          tooltip: 'More',
           icon: const Icon(Icons.more_vert),
           onSelected: (v) => switch (v) {
             'load' => _loadFile(),
@@ -268,14 +307,14 @@ class _ParamsPageState extends State<ParamsPage> {
             _ => null,
           },
           itemBuilder: (context) => [
-            PopupMenuItem(value: 'load', enabled: c.fullLoaded, child: Text(tr('Load file…'))),
-            PopupMenuItem(value: 'save', enabled: c.params.isNotEmpty, child: Text(tr('Save file…'))),
+            PopupMenuItem(value: 'load', enabled: c.fullLoaded, child: Text('Load file…')),
+            PopupMenuItem(value: 'save', enabled: c.params.isNotEmpty, child: Text('Save file…')),
             const PopupMenuDivider(),
-            PopupMenuItem(value: 'reboot', enabled: c.connected, child: Text(tr('Reboot vehicle'))),
+            PopupMenuItem(value: 'reboot', enabled: c.connected, child: Text('Reboot vehicle')),
             PopupMenuItem(
               value: 'reset',
               enabled: c.connected,
-              child: Text(tr('Reset to defaults…'), style: const TextStyle(color: AppColors.err)),
+              child: Text('Reset to defaults…', style: const TextStyle(color: AppColors.err)),
             ),
           ],
         ),
@@ -283,6 +322,7 @@ class _ParamsPageState extends State<ParamsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _tabs(),
           if (c.status('params').text.isNotEmpty)
             Padding(padding: const EdgeInsets.only(bottom: 8), child: StatusLine(c.status('params'))),
           Expanded(
@@ -417,7 +457,7 @@ class _Details extends StatelessWidget {
                   child: SelectableText(name, style: monoStyle.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
                 IconButton(
-                  tooltip: c.isPinned(name) ? tr('Unpin from dock') : tr('Pin to dock'),
+                  tooltip: c.isPinned(name) ? 'Unpin from dock' : 'Pin to dock',
                   onPressed: () => c.isPinned(name) ? c.unpin(name) : c.pin(name),
                   icon: Icon(c.isPinned(name) ? Icons.push_pin : Icons.push_pin_outlined, size: 18),
                 ),
@@ -425,7 +465,7 @@ class _Details extends StatelessWidget {
               ],
             ),
             if (meta == null)
-              Muted(c.paramMetaStatus.isNotEmpty ? tr(c.paramMetaStatus) : tr('No documentation for this parameter'))
+              Muted(c.paramMetaStatus.isNotEmpty ? c.paramMetaStatus : 'No documentation for this parameter')
             else ...[
               if (meta.title.isNotEmpty) Text(meta.title, style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
@@ -435,20 +475,20 @@ class _Details extends StatelessWidget {
             _Editor(c, name, meta, value),
             if (problem != null) ...[
               const SizedBox(height: 6),
-              Text('${tr('Value is')} ${tr(problem)}', style: const TextStyle(color: AppColors.err, fontSize: 12)),
+              Text('Value is $problem', style: const TextStyle(color: AppColors.err, fontSize: 12)),
             ],
             const SizedBox(height: 14),
-            _kv(tr('Vehicle value'), formatParam(c.params[name] ?? 0)),
-            if (boot != null) _kv(tr('At boot'), formatParam(boot)),
-            if (meta?.defaultValue != null) _kv(tr('Default'), formatParam(meta!.defaultValue!)),
+            _kv('Vehicle value', formatParam(c.params[name] ?? 0)),
+            if (boot != null) _kv('At boot', formatParam(boot)),
+            if (meta?.defaultValue != null) _kv('Default', formatParam(meta!.defaultValue!)),
             if (meta?.min != null || meta?.max != null)
               _kv(
-                tr('Range'),
+                'Range',
                 '${meta?.min == null ? '' : formatG(meta!.min!)} … ${meta?.max == null ? '' : formatG(meta!.max!)}',
               ),
-            if (meta?.increment != null) _kv(tr('Step'), formatG(meta!.increment!)),
-            if ((meta?.units ?? '').isNotEmpty) _kv(tr('Unit'), meta!.units),
-            _kv(tr('Type'), c.paramTypeName(name)),
+            if (meta?.increment != null) _kv('Step', formatG(meta!.increment!)),
+            if ((meta?.units ?? '').isNotEmpty) _kv('Unit', meta!.units),
+            _kv('Type', c.paramTypeName(name)),
             if (meta?.rebootRequired ?? false)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -456,26 +496,20 @@ class _Details extends StatelessWidget {
                   children: [
                     const Icon(Icons.restart_alt, size: 15, color: AppColors.warn),
                     const SizedBox(width: 6),
-                    Text(
-                      tr('Takes effect after a reboot'),
-                      style: const TextStyle(color: AppColors.warn, fontSize: 12),
-                    ),
+                    Text('Takes effect after a reboot', style: const TextStyle(color: AppColors.warn, fontSize: 12)),
                   ],
                 ),
               ),
             if (meta?.readOnly ?? false)
-              Padding(padding: const EdgeInsets.only(top: 6), child: Muted(tr('Read only'), size: 12)),
+              Padding(padding: const EdgeInsets.only(top: 6), child: Muted('Read only', size: 12)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               children: [
                 if (boot != null && !sameParamValue(boot, value))
-                  OutlinedButton(onPressed: () => c.stageParam(name, boot), child: Text(tr('Revert to boot value'))),
+                  OutlinedButton(onPressed: () => c.stageParam(name, boot), child: Text('Revert to boot value')),
                 if (meta?.defaultValue != null && !sameParamValue(meta!.defaultValue!, value))
-                  OutlinedButton(
-                    onPressed: () => c.stageParam(name, meta.defaultValue!),
-                    child: Text(tr('Use default')),
-                  ),
+                  OutlinedButton(onPressed: () => c.stageParam(name, meta.defaultValue!), child: Text('Use default')),
               ],
             ),
           ],

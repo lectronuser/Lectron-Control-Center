@@ -268,6 +268,124 @@ extension BoardViews on BoardController {
     return rows;
   }
 
+  /// Devices found besides the board's own hardware, e.g. a GPS or an external compass plugged in later, with
+  /// their type. The onboard sensors are matched the same way as in [onboardRows] and left out.
+  List<OnboardRow> addedDeviceRows() {
+    final now = mono();
+    final rows = <OnboardRow>[];
+    String where(DeviceInfo d) => d.address == '-' ? d.bus : '${d.bus}  ${d.address}';
+    (String, Tone) state(String kind, int inst) {
+      final (_, tone) = _reading((kind, inst), now);
+      return tone == Tone.err ? ('Detected', Tone.warn) : ('Detected', Tone.ok);
+    }
+
+    // IMUs that are not one of the onboard chips
+    final onboardImuChips = [for (final (_, _, chip) in onboardImus) chip];
+    for (var inst = 0; inst < 3; inst++) {
+      final id = deviceId('accel', inst);
+      if (id == 0) continue;
+      final dev = decodeDeviceId(id, 'accel', ardupilot: isArdupilot);
+      if (onboardImuChips.remove(dev.name)) continue;
+      final (status, tone) = state('accel', inst);
+      final (text, _) = _reading(('accel', inst), now);
+      rows.add(OnboardRow('IMU ${inst + 1}  ·  ${dev.chip}', where(dev), status, tone, text));
+    }
+
+    // barometers beyond the onboard BMP390s
+    var onboardBaroCount = onboardBaros.length;
+    for (var inst = 0; inst < 3; inst++) {
+      final id = deviceId('baro', inst);
+      if (id == 0) continue;
+      final dev = decodeDeviceId(id, 'baro', ardupilot: isArdupilot);
+      if (baro390Names.contains(dev.name) && onboardBaroCount > 0) {
+        onboardBaroCount--;
+        continue;
+      }
+      final (status, tone) = state('baro', inst);
+      final (text, _) = _reading(('baro', inst), now);
+      rows.add(OnboardRow('Barometer ${inst + 1}  ·  ${dev.chip}', where(dev), status, tone, text));
+    }
+
+    // compasses other than the onboard BMM350, internal or external
+    var onboardMag = true;
+    for (var inst = 0; inst < 3; inst++) {
+      final id = deviceId('mag', inst);
+      if (id == 0) continue;
+      final dev = decodeDeviceId(id, 'mag', ardupilot: isArdupilot);
+      if (onboardMag && dev.name == 'BMM350') {
+        onboardMag = false;
+        continue;
+      }
+      final external = isPx4
+          ? paramInt('CAL_MAG${inst}_ROT') >= 0
+          : paramInt(inst == 0 ? 'COMPASS_EXTERNAL' : 'COMPASS_EXTERN${inst + 1}') != 0;
+      final field = magField[inst];
+      final (status, tone) = state('mag', inst);
+      rows.add(
+        OnboardRow(
+          'Compass ${inst + 1}  ·  ${dev.chip}',
+          where(dev),
+          status,
+          field != null && (field < magFieldMin || field > magFieldMax) ? Tone.err : tone,
+          [external ? 'external' : 'internal', if (field != null) '${_f(field, 0)} mGauss'].join('   '),
+        ),
+      );
+    }
+
+    // GPS receivers with their type and port
+    final ports = gpsPorts();
+    for (var inst = 0; inst < 2; inst++) {
+      final type = gpsType(inst);
+      final info = gpsInfo[inst];
+      if ((type == null || type == 0) && info == null) continue;
+      final kind = type != null ? (gpsTypes[type] ?? 'Type $type') : 'GPS';
+      final iface = type == 9 ? 'DroneCAN' : (inst < ports.length ? ports[inst] : 'Serial');
+      if (info == null) {
+        rows.add(OnboardRow('GPS ${inst + 1}  ·  $kind', iface, 'No data', Tone.err, 'Configured, no GPS_RAW_INT'));
+        continue;
+      }
+      final fresh = now - info.t <= staleS;
+      rows.add(
+        OnboardRow(
+          'GPS ${inst + 1}  ·  $kind',
+          iface,
+          info.fix,
+          !fresh ? Tone.err : (info.fixType >= 3 ? Tone.ok : (info.fixType == 2 ? Tone.warn : Tone.err)),
+          '${info.sats ?? '-'} sats   HDOP ${info.hdop != null ? _f(info.hdop!, 2) : '-'}   '
+              '${_f(info.lat, 7)}, ${_f(info.lon, 7)}',
+        ),
+      );
+    }
+
+    // peripherals chosen by a TYPE parameter; the name comes from the parameter documentation when it is there
+    String typeName(String param, int type) => metaFor(param)?.values[type] ?? 'Type $type';
+    const peripherals = [
+      ('range', 'Rangefinder', 'RNGFND1_TYPE'),
+      ('airspeed', 'Airspeed', 'ARSPD_TYPE'),
+      ('flow', 'Optical flow', 'FLOW_TYPE'),
+    ];
+    for (final (kind, label, param) in peripherals) {
+      final type = paramInt(param);
+      final seen = live.keys.any((k) => k.$1 == kind);
+      if (type == 0 && !seen) continue;
+      final (text, tone) = _reading((kind, 0), now);
+      rows.add(
+        OnboardRow(
+          type != 0 ? '$label  ·  ${typeName(param, type)}' : label,
+          '-',
+          tone == Tone.err ? 'No data' : 'Detected',
+          tone == Tone.err ? Tone.err : Tone.ok,
+          text,
+        ),
+      );
+    }
+    final batt2 = paramInt('BATT2_MONITOR');
+    if (batt2 != 0) {
+      rows.add(OnboardRow('Battery 2  ·  ${typeName('BATT2_MONITOR', batt2)}', '-', 'Configured', Tone.ok, ''));
+    }
+    return rows;
+  }
+
   (String, Tone) _reading((String, int) key, double now) {
     final entry = live[key];
     if (entry == null) return ('No data', Tone.err);

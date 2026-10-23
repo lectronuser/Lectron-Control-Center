@@ -134,20 +134,14 @@ class MotorIdentState {
 
 // ---- setup wizard ----------------------------------------------------------------------------------
 
-/// The Setup Wizard's steps, in order.
+/// The calibration steps of the Calibration page, in order.
 const List<(String key, String title)> wizardSteps = [
-  ('frame', 'Frame / airframe'),
   ('accel', 'Accelerometer'),
   ('compass', 'Compass'),
+  ('level', 'Level · Gyro · Baro'),
   ('radio', 'Radio calibration'),
-  ('modes', 'Flight modes'),
-  ('switches', 'Switches'),
-  ('failsafe', 'Failsafes'),
-  ('battery', 'Battery'),
-  ('tune', 'Initial tune'),
-  ('motors', 'Motors'),
-  ('esc', 'ESC protocol'),
-  ('leds', 'LEDs & buzzer'),
+  ('esccal', 'ESC calibration'),
+  ('compassmot', 'CompassMot'),
 ];
 
 extension SetupActions on BoardController {
@@ -644,10 +638,38 @@ extension SetupActions on BoardController {
     }
   }
 
+  // ---- frame ------------------------------------------------------------------------------------------
+
+  /// Prefix of the ArduPilot frame parameters: '' for copters, 'Q_' for QuadPlanes, null when there are none.
+  String? get framePrefix {
+    if (params.containsKey('FRAME_CLASS')) return '';
+    if (params.containsKey('Q_FRAME_CLASS')) return 'Q_';
+    return null;
+  }
+
+  /// Writes the frame (ArduPilot class and type, or the PX4 airframe), then reboots so it takes effect.
+  void applyFrame({int? frameClass, int? frameType, int? airframe}) {
+    final pairs = <(String, Object?)>[
+      if (airframe != null) ...[
+        ('SYS_AUTOSTART', airframe),
+        // PX4 loads the airframe defaults on the next boot
+        if (params.containsKey('SYS_AUTOCONFIG')) ('SYS_AUTOCONFIG', 1),
+      ] else ...[
+        ('${framePrefix ?? ''}FRAME_CLASS', frameClass),
+        ('${framePrefix ?? ''}FRAME_TYPE', frameType),
+      ],
+    ];
+    statuses['frame'] = applyAndReboot(pairs, 'Frame');
+    _changed();
+  }
+
   // ---- motor identification -----------------------------------------------------------------------
 
   FrameLayout? get frameLayout {
-    if (isArdupilot) return apFrameLayouts[(paramInt('FRAME_CLASS'), paramInt('FRAME_TYPE'))];
+    if (isArdupilot) {
+      final p = framePrefix ?? '';
+      return apFrameLayouts[(paramInt('${p}FRAME_CLASS'), paramInt('${p}FRAME_TYPE'))];
+    }
     if (isPx4) {
       final n = paramInt('CA_ROTOR_COUNT');
       if (n <= 0) return null;

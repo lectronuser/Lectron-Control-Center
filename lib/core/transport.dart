@@ -18,6 +18,12 @@ class PortInfo {
   bool get flightController => kind == PortKind.ardupilot || kind == PortKind.px4;
 }
 
+/// Device name for the port list: the USB product string without serial numbers or board UIDs.
+String deviceName(String description) => description
+    .replaceAll(RegExp(r'[_\s-]*(?<![0-9A-Za-z])[0-9A-Fa-f]{12,}(?![0-9A-Za-z])'), '')
+    .replaceAll('_', ' ')
+    .trim();
+
 /// Classifies a USB serial port by vendor / product ID and its description.
 PortKind classifyUsb(int? vid, int? pid, String description) {
   final text = description.toLowerCase();
@@ -64,7 +70,7 @@ class DeviceTransportFactory implements TransportFactory {
         port = SerialPort(name);
         // USB devices and the UARTs of this computer, e.g. the one wired to the board on a CM5
         final usb = port.transport == SerialPortTransport.usb;
-        final description = port.description ?? '';
+        final description = deviceName(port.description ?? '');
         int? vid, pid;
         if (usb) {
           try {

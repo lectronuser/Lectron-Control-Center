@@ -230,4 +230,3 @@ Future<List<int>> _httpGet(String url) async {
 }
 
 /// Plain HTTP GET with timeouts, shared by the firmware and map downloads.
-Future<List<int>> httpGet(String url) => _httpGet(url);

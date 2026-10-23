@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'crc.dart';
-import 'param_meta.dart';
 import 'transport.dart';
 
 // ---- firmware images --------------------------------------------------------------------------------
@@ -211,83 +209,3 @@ class BootloaderClient {
     }
   }
 }
-
-// ---- sources ----------------------------------------------------------------------------------------
-
-/// One ArduPilot firmware build from the manifest.
-class ApBuild {
-  const ApBuild(this.vehicle, this.platform, this.release, this.version, this.url, this.boardId);
-  final String vehicle;
-  final String platform;
-
-  /// OFFICIAL, BETA, DEV or STABLE-x.y.z.
-  final String release;
-  final String version;
-  final String url;
-  final int boardId;
-
-  bool get prerelease => release == 'BETA' || release == 'DEV';
-}
-
-/// The .apj builds of ArduPilot's manifest; the download is cached for a day.
-Future<List<ApBuild>> fetchApManifest({Directory? cache, Future<List<int>> Function(String) get = httpGet}) async {
-  final file = cache == null ? null : File('${cache.path}${Platform.pathSeparator}ap_manifest.json.gz');
-  List<int>? gz;
-  if (file != null && file.existsSync() && DateTime.now().difference(file.lastModifiedSync()).inHours < 24) {
-    gz = await file.readAsBytes();
-  }
-  if (gz == null) {
-    gz = await get('https://firmware.ardupilot.org/manifest.json.gz');
-    try {
-      file?.parent.createSync(recursive: true);
-      await file?.writeAsBytes(gz);
-    } catch (_) {
-      // used once without a cache
-    }
-  }
-  final bytes = gz;
-  return Isolate.run(() {
-    final root = jsonDecode(utf8.decode(GZipCodec().decode(bytes))) as Map<String, dynamic>;
-    return [
-      for (final f in root['firmware'] as List)
-        if (f is Map && f['format'] == 'apj' && f['board_id'] is num)
-          ApBuild(
-            '${f['vehicletype']}',
-            '${f['platform']}',
-            '${f['mav-firmware-version-type']}',
-            '${f['mav-firmware-version']}',
-            '${f['url']}',
-            (f['board_id'] as num).toInt(),
-          ),
-    ];
-  });
-}
-
-/// A .px4 build attached to a PX4 GitHub release.
-class Px4Build {
-  const Px4Build(this.release, this.target, this.url, {this.prerelease = false});
-  final String release;
-  final String target;
-  final String url;
-  final bool prerelease;
-}
-
-Future<List<Px4Build>> fetchPx4Releases({Future<List<int>> Function(String) get = httpGet}) async {
-  final list =
-      jsonDecode(utf8.decode(await get('https://api.github.com/repos/PX4/PX4-Autopilot/releases?per_page=8'))) as List;
-  return [
-    for (final r in list)
-      if (r is Map)
-        for (final a in (r['assets'] as List? ?? const []))
-          if (a is Map && '${a['name']}'.endsWith('.px4'))
-            Px4Build(
-              '${r['tag_name']}',
-              '${a['name']}'.replaceAll('.px4', ''),
-              '${a['browser_download_url']}',
-              prerelease: r['prerelease'] == true,
-            ),
-  ];
-}
-
-/// ArduPilot vehicle names in the manifest for a vehicle type of the connected firmware.
-const List<String> apVehicles = ['Copter', 'Plane', 'Rover', 'Sub', 'Heli', 'AntennaTracker', 'Blimp'];

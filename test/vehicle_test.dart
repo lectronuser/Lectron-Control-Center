@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lectron_control/core/board_controller.dart';
 import 'package:lectron_control/core/param_meta.dart';
 import 'package:lectron_control/core/transport.dart';
+import 'package:lectron_control/ui/pages/calibration_page.dart';
 import 'package:lectron_control/mavlink/mavlink.dart';
-import 'package:lectron_control/ui/i18n.dart';
 import 'package:lectron_control/ui/search.dart';
 
 import 'support/fake_board.dart';
@@ -125,6 +125,9 @@ void main() {
     expect(classifyUsb(0x26AC, 0x0011, 'PX4 FMU v2.x'), PortKind.px4);
     expect(classifyUsb(0x0403, 0x6015, 'FT231X USB UART'), PortKind.radio);
     expect(classifyUsb(0x1A86, 0x7523, 'USB Serial'), PortKind.serial);
+    expect(deviceName('LectronPi5H7_003A00413033510B30373536'), 'LectronPi5H7');
+    expect(deviceName('ArduPilot LectronPi5H7 003A00413033510B30373536'), 'ArduPilot LectronPi5H7');
+    expect(deviceName('CP2102 USB to UART'), 'CP2102 USB to UART');
   });
 
   boardTest('collects PreArm reasons, pins values, stages and writes parameters', (tester, h) async {
@@ -168,7 +171,7 @@ void main() {
     // the search finds parameters by name
     final hits = searchAll(c, 'pilot_speed');
     expect(hits.first.param, 'PILOT_SPEED_UP');
-    expect(searchAll(c, 'safety').first.info!.label, 'Safety & Failsafes');
+    expect(searchAll(c, 'safety').first.info!.label, 'Board Settings');
 
     // flight mode and arm go out as commands
     c.setFlightMode(5);
@@ -181,13 +184,15 @@ void main() {
     expect(commands, containsAll([Mav.cmdDoSetMode, Mav.cmdComponentArmDisarm]));
   });
 
-  test('Turkish translation falls back to English', () {
-    appLanguage = 'tr';
-    expect(tr('Connect'), 'Bağlan');
-    expect(tr('Calibration'), 'Kalibrasyon');
-    expect(tr('A text nobody translated'), 'A text nobody translated');
-    expect(trf('{n} parameters', {'n': 3}), contains('3'));
-    appLanguage = 'en';
-    expect(tr('Connect'), 'Connect');
+  test('compass rotation guide maps the attitude to sphere cells', () {
+    final level = fieldInBody(0, 0, 0);
+    expect(level.$1, greaterThan(0.5)); // north is ahead
+    expect(level.$3, greaterThan(0.5)); // and down
+    final upsideDown = fieldInBody(180, 0, 0);
+    expect(upsideDown.$3, lessThan(-0.5));
+    final facingSouth = fieldInBody(0, 0, 180);
+    expect(facingSouth.$1, lessThan(-0.5));
+    expect(sphereCell(level), isNot(sphereCell(upsideDown)));
+    expect(sphereCell((0, 0, 1)), inInclusiveRange(0, sphereCells - 1));
   });
 }

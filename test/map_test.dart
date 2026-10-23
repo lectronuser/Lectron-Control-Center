@@ -51,14 +51,9 @@ void main() {
     expect(k.single.contains(40.005, 29.005), isTrue);
   });
 
-  test('recipes: serial port substitution and saved recipes', () {
+  test('port presets: serial port substitution', () {
     final gps = builtinRecipes.firstWhere((r) => r.id == 'ap_gps_serial');
     expect(gps.resolve(port: 4)['SERIAL4_PROTOCOL'], 5);
-    final mine = Recipe(id: 'x', title: 'Mine', description: '', values: const {'RTL_ALT': 3000}, custom: true);
-    final back = decodeRecipes(encodeRecipes([mine]));
-    expect(back.single.values['RTL_ALT'], 3000);
-    expect(back.single.custom, isTrue);
-    expect(decodeRecipes('broken'), isEmpty);
   });
 
   test('offline map tiles cover an area and refuse too many', () {

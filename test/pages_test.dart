@@ -66,7 +66,7 @@ void main() {
         await tester.pump();
         expect(tester.takeException(), isNull, reason: 'disconnected $page');
       }
-      c.showPage(AppPage.overview);
+      c.showPage(AppPage.board);
       await h.connect(tester);
       h.board.statusText(4, 'PreArm: Compass not calibrated');
       c.markTest('usb', pass: true);
@@ -82,7 +82,7 @@ void main() {
       }
       // the sidebar lists the page groups
       expect(find.text('FLIGHT CONTROLLER'), findsOneWidget);
-      expect(find.text('Messages'), findsWidgets);
+      expect(find.text('Frame'), findsWidgets);
     });
   }
 }

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import '../../board/board_data.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
-import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -53,8 +52,8 @@ class _TestPageState extends State<TestPage> {
     );
     final side = Column(children: [_PinoutCard(_pinout), const SizedBox(height: 16), _ReportCard(c)]);
     return PageFrame(
-      title: tr('Test'),
-      subtitle: tr('Port by port board test, pinouts and the test report'),
+      title: 'Test',
+      subtitle: 'Port by port board test, pinouts and the test report',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -106,7 +105,7 @@ class _SummaryCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Muted(tr('passed')),
+              Muted('passed'),
               const SizedBox(width: 16),
               StatusChip(verdict, tone),
               if (failed > 0) ...[const SizedBox(width: 8), StatusChip('$failed failed', Tone.err)],
@@ -118,11 +117,11 @@ class _SummaryCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: c.resetTests,
                 icon: const Icon(Icons.restart_alt, size: 16),
-                label: Text(tr('Reset Results')),
+                label: Text('Reset Results'),
               ),
               const SizedBox(width: 10),
               Tooltip(
-                message: tr('Put back the port parameters changed by the tests (reboots the board)'),
+                message: 'Put back the port parameters changed by the tests (reboots the board)',
                 child: OutlinedButton.icon(
                   onPressed: c.connected ? c.restorePorts : null,
                   icon: const Icon(Icons.settings_backup_restore, size: 16),
@@ -170,11 +169,11 @@ class _SummaryCard extends StatelessWidget {
             spacing: 12,
             runSpacing: 8,
             children: [
-              Muted(tr('Device for UART ports')),
+              Muted('Device for UART ports'),
               SizedBox(width: 230, child: _DeviceDropdown(telemTestDevices, c.telemDevice, c.setTelemDevice)),
               Tooltip(
-                message: tr('TELEM3 (USART2) is bridged to the CM5 and has no FMU connector by default'),
-                child: CheckRow(tr('TELEM3 connector fitted'), c.telem3Fitted, c.setTelem3Fitted),
+                message: 'TELEM3 (USART2) is bridged to the CM5 and has no FMU connector by default',
+                child: CheckRow('TELEM3 connector fitted', c.telem3Fitted, c.setTelem3Fitted),
               ),
             ],
           ),
@@ -261,7 +260,7 @@ class _ConnectorCard extends StatelessWidget {
                 TextButton.icon(
                   onPressed: onPinout,
                   icon: const Icon(Icons.pin_outlined, size: 16),
-                  label: Text(tr('Pinout')),
+                  label: Text('Pinout'),
                 ),
               ],
             ),
@@ -324,7 +323,7 @@ class _TestRow extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: Text(tr('Test')),
+                child: Text('Test'),
               ),
               const SizedBox(width: 4),
               IconButton(
@@ -367,7 +366,7 @@ class _PinoutCard extends StatelessWidget {
       _ => AppColors.accent,
     };
     return AppCard(
-      title: tr('Pinout'),
+      title: 'Pinout',
       badge: connector.part,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -441,7 +440,7 @@ class _ReportCard extends StatelessWidget {
         suggestedName: name,
         initialDirectory: lastDir != null && Directory(lastDir).existsSync() ? lastDir : null,
         acceptedTypeGroups: [
-          XTypeGroup(label: tr('PDF files'), extensions: ['pdf']),
+          XTypeGroup(label: 'PDF files', extensions: ['pdf']),
         ],
       ),
     );
@@ -457,7 +456,7 @@ class _ReportCard extends StatelessWidget {
     final progress = c.captureProgress;
     final saved = c.lastReportPath;
     return AppCard(
-      title: tr('Test Report'),
+      title: 'Test Report',
       badge: 'PDF',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -471,7 +470,7 @@ class _ReportCard extends StatelessWidget {
           FilledButton.icon(
             onPressed: c.reportBusy ? null : () => _create(context),
             icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
-            label: Text(tr('Create Report')),
+            label: Text('Create Report'),
           ),
           if (c.reportBusy) ...[
             const SizedBox(height: 10),
@@ -489,7 +488,7 @@ class _ReportCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => openExternally(saved),
                     icon: const Icon(Icons.open_in_new, size: 16),
-                    label: Text(tr('Open PDF')),
+                    label: Text('Open PDF'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -497,7 +496,7 @@ class _ReportCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => openExternally(parentDir(saved)),
                     icon: const Icon(Icons.folder_open, size: 16),
-                    label: Text(tr('Show Folder')),
+                    label: Text('Show Folder'),
                   ),
                 ),
               ],
@@ -564,7 +563,7 @@ class _ReportDialogState extends State<_ReportDialog> {
       ),
     );
     return AlertDialog(
-      title: Text(tr('Test Report'), style: Theme.of(context).textTheme.titleMedium),
+      title: Text('Test Report', style: Theme.of(context).textTheme.titleMedium),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -582,8 +581,8 @@ class _ReportDialogState extends State<_ReportDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
-        FilledButton(onPressed: _valid ? _submit : null, child: Text(tr('Create PDF'))),
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
+        FilledButton(onPressed: _valid ? _submit : null, child: Text('Create PDF')),
       ],
     );
   }

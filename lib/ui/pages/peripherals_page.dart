@@ -2,40 +2,26 @@ import 'package:flutter/material.dart';
 
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
-import '../banners.dart';
-import '../i18n.dart';
 import '../param_form.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
-/// GPS, battery monitors, rangefinders, airspeed, optical flow, LEDs, buzzer, camera and gimbal.
-class PeripheralsPage extends StatelessWidget {
-  const PeripheralsPage(this.c, {super.key});
+/// GPS, battery monitors, rangefinders, airspeed, optical flow, LEDs, buzzer, camera and gimbal; a tab of the
+/// Parameters page.
+class PeripheralsView extends StatelessWidget {
+  const PeripheralsView(this.c, {super.key});
   final BoardController c;
 
   @override
   Widget build(BuildContext context) {
-    return PageFrame(
-      title: tr('Peripherals'),
-      subtitle: tr('GPS, battery monitor, rangefinder, airspeed, optical flow, LEDs, buzzer, camera and gimbal'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IssueBanners(c, only: const {AppPage.peripherals}),
-          ChangedSinceBoot(c, AppPage.peripherals),
-          if (c.target == null)
-            Muted(tr('Connect a vehicle to set up its peripherals'))
-          else
-            ParamSections(c, c.isPx4 ? _px4(c) : _ardupilot(c)),
-        ],
-      ),
-    );
+    if (c.target == null) return Muted('Connect a vehicle to set up its peripherals');
+    return ParamSections(c, c.isPx4 ? _px4(c) : _ardupilot(c));
   }
 }
 
 Widget _live(BoardController c, String type, String Function(dynamic m) text) {
   final stat = c.msgStats[type];
-  if (stat == null || mono() - stat.t > 3) return Muted('$type: ${tr('no data')}', size: 12);
+  if (stat == null || mono() - stat.t > 3) return Muted('$type: no data', size: 12);
   return Text(text(stat.last), style: monoStyle.copyWith(fontSize: 12.5, color: AppColors.ok));
 }
 
@@ -93,12 +79,13 @@ List<ParamSection> _ardupilot(BoardController c) => [
     PField.one('ARSPD_PIN'),
     PField.one('ARSPD_RATIO'),
     PField.one('ARSPD_AUTOCAL'),
-  ], top: _live(c, 'VFR_HUD', (m) => '${tr('Airspeed')} ${m.d('airspeed').toStringAsFixed(1)} m/s')),
-  ParamSection(
-    'Optical flow',
-    [PField.one('FLOW_TYPE'), PField.one('FLOW_ORIENT_YAW'), PField.one('FLOW_FXSCALER'), PField.one('FLOW_FYSCALER')],
-    top: _live(c, 'OPTICAL_FLOW', (m) => 'X ${m.i('flow_x')}  Y ${m.i('flow_y')}  ${tr('quality')} ${m.i('quality')}'),
-  ),
+  ], top: _live(c, 'VFR_HUD', (m) => 'Airspeed ${m.d('airspeed').toStringAsFixed(1)} m/s')),
+  ParamSection('Optical flow', [
+    PField.one('FLOW_TYPE'),
+    PField.one('FLOW_ORIENT_YAW'),
+    PField.one('FLOW_FXSCALER'),
+    PField.one('FLOW_FYSCALER'),
+  ], top: _live(c, 'OPTICAL_FLOW', (m) => 'X ${m.i('flow_x')}  Y ${m.i('flow_y')}  quality ${m.i('quality')}')),
   ParamSection('LEDs & buzzer', [
     PField.one('NTF_LED_TYPES'),
     PField.one('NTF_LED_BRIGHT'),
@@ -211,7 +198,7 @@ class _BatteryCalibratorState extends State<BatteryCalibrator> {
     final name = c.isPx4 ? 'BAT1_V_DIV' : 'BATT_VOLT_MULT';
     final mult = c.params[name]?.toDouble();
     if (measured == null || reported == null || reported < 1 || mult == null) {
-      c.notify(tr('Enter the measured voltage while the battery is connected'));
+      c.notify('Enter the measured voltage while the battery is connected');
       return;
     }
     c.stageParam(name, double.parse((mult * measured / reported).toStringAsFixed(4)));
@@ -220,7 +207,7 @@ class _BatteryCalibratorState extends State<BatteryCalibrator> {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Expanded(child: Muted(tr('Measured with a multimeter:'), size: 12)),
+      Expanded(child: Muted('Measured with a multimeter:', size: 12)),
       SizedBox(
         width: 90,
         child: TextField(
@@ -229,7 +216,7 @@ class _BatteryCalibratorState extends State<BatteryCalibrator> {
         ),
       ),
       const SizedBox(width: 8),
-      OutlinedButton(onPressed: _apply, child: Text(tr('Correct voltage'))),
+      OutlinedButton(onPressed: _apply, child: Text('Correct voltage')),
     ],
   );
 }

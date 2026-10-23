@@ -17,7 +17,6 @@ import '../../logs/flight_log.dart';
 import '../../logs/log_download.dart';
 import '../../logs/ulog.dart';
 import '../chart.dart';
-import '../i18n.dart';
 import '../map_tiles.dart';
 import '../theme.dart';
 import '../vehicle3d.dart';
@@ -129,7 +128,7 @@ class _LogsPageState extends State<LogsPage> {
   Future<void> _open(Uint8List bytes, String name, {bool compare = false}) async {
     setState(() {
       s.busy = true;
-      s.status = '${tr('Reading')} $name…';
+      s.status = 'Reading $name…';
     });
     try {
       final (log, analysis) = await loadLog(bytes, name);
@@ -157,7 +156,7 @@ class _LogsPageState extends State<LogsPage> {
         s.status = '$name: ${log.firmware}, ${mmss(log.duration)}';
       });
     } catch (e) {
-      setState(() => s.status = '${tr('Could not read the log:')} $e');
+      setState(() => s.status = 'Could not read the log: $e');
     } finally {
       if (mounted) setState(() => s.busy = false);
     }
@@ -177,7 +176,7 @@ class _LogsPageState extends State<LogsPage> {
     try {
       setState(() {
         s.busy = true;
-        s.status = tr('Asking the vehicle for its logs…');
+        s.status = 'Asking the vehicle for its logs…';
       });
       final entries = await dl.list();
       setState(() => s.busy = false);
@@ -185,19 +184,19 @@ class _LogsPageState extends State<LogsPage> {
       final pick = await showDialog<LogEntryInfo>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text(tr('Logs on the vehicle')),
+          title: Text('Logs on the vehicle'),
           content: SizedBox(
             width: 480,
             height: 380,
             child: entries.isEmpty
-                ? Center(child: Muted(tr('No logs on the vehicle')))
+                ? Center(child: Muted('No logs on the vehicle'))
                 : ListView(
                     children: [
                       for (final e in entries.reversed)
                         ListTile(
                           dense: true,
                           leading: const Icon(Icons.receipt_long, size: 18),
-                          title: Text('${tr('Log')} ${e.id}'),
+                          title: Text('Log ${e.id}'),
                           subtitle: Text(
                             '${(e.size / (1 << 20)).toStringAsFixed(1)} MB${e.time == null ? '' : '  ·  ${ymd(e.time!)} ${hms(e.time!)}'}',
                           ),
@@ -212,25 +211,25 @@ class _LogsPageState extends State<LogsPage> {
                 onPressed: () async {
                   if (await confirm(
                     context,
-                    tr('Erase all logs'),
-                    tr('Delete every log on the vehicle?'),
-                    action: tr('Erase'),
+                    'Erase all logs',
+                    'Delete every log on the vehicle?',
+                    action: 'Erase',
                     danger: true,
                   )) {
                     await dl.eraseAll();
                     if (context.mounted) Navigator.pop(context);
                   }
                 },
-                child: Text(tr('Erase all'), style: const TextStyle(color: AppColors.err)),
+                child: Text('Erase all', style: const TextStyle(color: AppColors.err)),
               ),
-            OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Close'))),
+            OutlinedButton(onPressed: () => Navigator.pop(context), child: Text('Close')),
           ],
         ),
       );
       if (pick == null) return;
       setState(() {
         s.busy = true;
-        s.status = '${tr('Downloading log')} ${pick.id}…';
+        s.status = 'Downloading log ${pick.id}…';
       });
       final data = await dl.download(
         pick,
@@ -239,7 +238,7 @@ class _LogsPageState extends State<LogsPage> {
             setState(() {
               s.progress = total == 0 ? null : got / total;
               s.status =
-                  '${tr('Downloading log')} ${pick.id}: ${(got / 1024).round()} / ${(total / 1024).round()} KB'
+                  'Downloading log ${pick.id}: ${(got / 1024).round()} / ${(total / 1024).round()} KB'
                   '${rate > 0 ? '  (${(rate / 1024).round()} KB/s)' : ''}';
             });
           }
@@ -255,7 +254,7 @@ class _LogsPageState extends State<LogsPage> {
       s.progress = null;
       await _open(data, name);
     } catch (e) {
-      setState(() => s.status = '${tr('Download failed:')} $e');
+      setState(() => s.status = 'Download failed: $e');
     } finally {
       dl.dispose();
       if (mounted) {
@@ -326,22 +325,22 @@ class _LogsPageState extends State<LogsPage> {
       OutlinedButton.icon(
         onPressed: s.busy || c.target == null ? null : _fromVehicle,
         icon: const Icon(Icons.download, size: 16),
-        label: Text(tr('From vehicle…')),
+        label: Text('From vehicle…'),
       ),
       OutlinedButton.icon(
         onPressed: s.busy ? null : _openFile,
         icon: const Icon(Icons.folder_open, size: 16),
-        label: Text(tr('Open file…')),
+        label: Text('Open file…'),
       ),
       if (log != null)
         OutlinedButton.icon(
           onPressed: s.busy ? null : () => _openFile(compare: true),
           icon: const Icon(Icons.compare_arrows, size: 16),
-          label: Text(tr('Compare with…')),
+          label: Text('Compare with…'),
         ),
       if (log != null)
         IconButton(
-          tooltip: tr('Close the log'),
+          tooltip: 'Close the log',
           onPressed: () => setState(() {
             s.a = s.aa = s.b = s.bb = null;
             s.status = '';
@@ -350,9 +349,9 @@ class _LogsPageState extends State<LogsPage> {
         ),
     ];
     return PageFrame(
-      title: tr('Logs'),
+      title: 'Logs',
       subtitle: log == null
-          ? tr('Download flight logs or open .bin / .ulg files; automatic checks, charts and replay')
+          ? 'Download flight logs or open .bin / .ulg files; automatic checks, charts and replay'
           : '${log.name}  ·  ${log.firmware}  ·  ${mmss(log.duration)}',
       actions: actions,
       child: Column(
@@ -370,12 +369,10 @@ class _LogsPageState extends State<LogsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(tr('No log open'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text('No log open', style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   Muted(
-                    tr(
-                      'Download a log from the connected vehicle over MAVLink, or open a .bin (ArduPilot) or .ulg (PX4) file.',
-                    ),
+                    'Download a log from the connected vehicle over MAVLink, or open a .bin (ArduPilot) or .ulg (PX4) file.',
                   ),
                 ],
               ),
@@ -387,7 +384,7 @@ class _LogsPageState extends State<LogsPage> {
                 showSelectedIcon: false,
                 segments: [
                   for (var i = 0; i < _tabs.length; i++)
-                    if (i != 7 || s.b != null) ButtonSegment(value: i, label: Text(tr(_tabs[i]))),
+                    if (i != 7 || s.b != null) ButtonSegment(value: i, label: Text(_tabs[i])),
                 ],
                 selected: {s.tab},
                 onSelectionChanged: (v) => setState(() => s.tab = v.first),
@@ -419,7 +416,7 @@ class _LogsPageState extends State<LogsPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Muted(tr(label), size: 11.5),
+        Muted(label, size: 11.5),
         const SizedBox(height: 4),
         Text(value, style: monoStyle.copyWith(fontSize: 18, fontWeight: FontWeight.w700)),
       ],
@@ -433,7 +430,7 @@ class _LogsPageState extends State<LogsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(children: [StatusChip(tr(sum.verdict), sum.tone, dot: true)]),
+        Row(children: [StatusChip(sum.verdict, sum.tone, dot: true)]),
         const SizedBox(height: 12),
         Wrap(
           spacing: 10,
@@ -455,10 +452,10 @@ class _LogsPageState extends State<LogsPage> {
             _tile('Lowest voltage', opt(sum.minVolt, 'V', 2)),
           ],
         ),
-        if (sum.modes.isNotEmpty) ...[const SizedBox(height: 10), Muted('${tr('Modes')}: ${sum.modes.join(', ')}')],
+        if (sum.modes.isNotEmpty) ...[const SizedBox(height: 10), Muted('Modes: ${sum.modes.join(', ')}')],
         const SizedBox(height: 16),
         AppCard(
-          title: tr('Checks'),
+          title: 'Checks',
           child: Column(
             children: [
               for (final check in a.checks)
@@ -489,7 +486,7 @@ class _LogsPageState extends State<LogsPage> {
                         const SizedBox(width: 10),
                         SizedBox(
                           width: 200,
-                          child: Text(tr(check.title), style: const TextStyle(fontWeight: FontWeight.w600)),
+                          child: Text(check.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                         ),
                         Expanded(
                           child: Text(check.text, style: const TextStyle(color: AppColors.muted)),
@@ -505,7 +502,7 @@ class _LogsPageState extends State<LogsPage> {
         if (a.suggestions.isNotEmpty) ...[
           const SizedBox(height: 16),
           AppCard(
-            title: tr('Suggested changes'),
+            title: 'Suggested changes',
             child: Column(
               children: [
                 for (final sug in a.suggestions)
@@ -519,15 +516,15 @@ class _LogsPageState extends State<LogsPage> {
                           style: monoStyle.copyWith(color: AppColors.accent),
                         ),
                         const SizedBox(width: 12),
-                        Expanded(child: Muted(tr(sug.reason), size: 12)),
+                        Expanded(child: Muted(sug.reason, size: 12)),
                         OutlinedButton(
                           onPressed: c.params.containsKey(sug.param) ? () => c.stageParam(sug.param, sug.value) : null,
-                          child: Text(c.isStaged(sug.param) ? tr('Staged') : tr('Stage')),
+                          child: Text(c.isStaged(sug.param) ? 'Staged' : 'Stage'),
                         ),
                       ],
                     ),
                   ),
-                if (c.target == null) Muted(tr('Connect the vehicle to stage these values.'), size: 12),
+                if (c.target == null) Muted('Connect the vehicle to stage these values.', size: 12),
               ],
             ),
           ),
@@ -535,9 +532,9 @@ class _LogsPageState extends State<LogsPage> {
         if (a.hover.isNotEmpty) ...[
           const SizedBox(height: 16),
           AppCard(
-            title: tr('Hover & battery'),
+            title: 'Hover & battery',
             child: SimpleTable(
-              columns: [Col(tr('Battery'), flex: 1), Col(tr('Hover throttle'), flex: 1), Col(tr('Samples'), flex: 1)],
+              columns: [Col('Battery', flex: 1), Col('Hover throttle', flex: 1), Col('Samples', flex: 1)],
               rows: [
                 for (final (v, thr, n) in a.hover)
                   [
@@ -574,11 +571,11 @@ class _LogsPageState extends State<LogsPage> {
         );
       }
     }
-    if (lines.isEmpty) return AppCard(child: Muted('${tr(title)}: ${tr('not in this log')}'));
+    if (lines.isEmpty) return AppCard(child: Muted('$title: not in this log'));
     return AppCard(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: LineChart(
-        title: tr(title),
+        title: title,
         lines: lines,
         from: s.from,
         to: s.to,
@@ -652,7 +649,7 @@ class _LogsPageState extends State<LogsPage> {
   Widget _kv(String k, String v) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Muted(tr(k), size: 11),
+      Muted(k, size: 11),
       Text(v, style: monoStyle.copyWith(fontSize: 13)),
     ],
   );
@@ -674,7 +671,7 @@ class _LogsPageState extends State<LogsPage> {
           children: [
             for (final p in presets.keys)
               FilterChip(
-                label: Text(tr(p), style: const TextStyle(fontSize: 12)),
+                label: Text(p, style: const TextStyle(fontSize: 12)),
                 selected: s.presets.contains(p),
                 onSelected: (on) => setState(() => on ? s.presets.add(p) : s.presets.remove(p)),
               ),
@@ -688,7 +685,7 @@ class _LogsPageState extends State<LogsPage> {
               child: TextField(
                 onChanged: (t) => setState(() => _search = t),
                 decoration: InputDecoration(
-                  hintText: tr('Free plot: search a field, e.g. BAT or vibration'),
+                  hintText: 'Free plot: search a field, e.g. BAT or vibration',
                   prefixIcon: const Icon(Icons.search, size: 18),
                 ),
               ),
@@ -706,7 +703,7 @@ class _LogsPageState extends State<LogsPage> {
                 ],
               ),
             ),
-            TextButton(onPressed: () => _zoom(double.negativeInfinity, double.infinity), child: Text(tr('Reset zoom'))),
+            TextButton(onPressed: () => _zoom(double.negativeInfinity, double.infinity), child: Text('Reset zoom')),
           ],
         ),
         if (found.isNotEmpty)
@@ -734,9 +731,7 @@ class _LogsPageState extends State<LogsPage> {
         if (s.free.isNotEmpty) ...[_chartFor('Free plot', s.free.toList()), const SizedBox(height: 12)],
         for (final p in s.presets) ...[_chartFor(p, presets[p]!), const SizedBox(height: 12)],
         if (s.free.isEmpty && s.presets.isEmpty)
-          Muted(
-            tr('Pick a preset view or search for a field to plot. Drag on a chart to zoom, double click to reset.'),
-          ),
+          Muted('Pick a preset view or search for a field to plot. Drag on a chart to zoom, double click to reset.'),
       ],
     );
   }
@@ -747,7 +742,7 @@ class _LogsPageState extends State<LogsPage> {
     final events = s.aa!.events;
     return AppCard(
       child: events.isEmpty
-          ? Muted(tr('No events'))
+          ? Muted('No events')
           : Column(
               children: [
                 for (final e in events)
@@ -766,10 +761,10 @@ class _LogsPageState extends State<LogsPage> {
                           const SizedBox(width: 8),
                           SizedBox(
                             width: 260,
-                            child: Text(tr(e.title), style: TextStyle(color: toneColor(e.tone, AppColors.text))),
+                            child: Text(e.title, style: TextStyle(color: toneColor(e.tone, AppColors.text))),
                           ),
                           Expanded(
-                            child: Text(tr(e.text), style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                            child: Text(e.text, style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
                           ),
                         ],
                       ),
@@ -788,14 +783,14 @@ class _LogsPageState extends State<LogsPage> {
         AppCard(
           child: SimpleTable(
             columns: [
-              Col(tr('Axis'), flex: 2),
-              Col(tr('Typical'), flex: 1),
-              Col(tr('Peak'), flex: 1),
-              Col(tr('At'), flex: 1),
-              Col(tr('> 30 s'), flex: 1),
-              Col(tr('> 60 s'), flex: 1),
+              Col('Axis', flex: 2),
+              Col('Typical', flex: 1),
+              Col('Peak', flex: 1),
+              Col('At', flex: 1),
+              Col('> 30 s', flex: 1),
+              Col('> 60 s', flex: 1),
             ],
-            empty: tr('No vibration data in this log'),
+            empty: 'No vibration data in this log',
             rows: [
               for (final e in v.entries)
                 [
@@ -828,14 +823,14 @@ class _LogsPageState extends State<LogsPage> {
         AppCard(
           child: SimpleTable(
             columns: [
-              Col(tr('Motor'), flex: 1),
-              Col(tr('Average'), flex: 1),
-              Col(tr('Max'), flex: 1),
-              Col(tr('At full output'), flex: 1),
+              Col('Motor', flex: 1),
+              Col('Average', flex: 1),
+              Col('Max', flex: 1),
+              Col('At full output', flex: 1),
               Col('eRPM', flex: 1),
-              Col(tr('Note'), flex: 3),
+              Col('Note', flex: 3),
             ],
-            empty: tr('No motor outputs in this log'),
+            empty: 'No motor outputs in this log',
             rows: [
               for (final x in m)
                 [
@@ -850,8 +845,8 @@ class _LogsPageState extends State<LogsPage> {
                   CellText(x.rpm == null ? '-' : x.rpm!.toStringAsFixed(0), mono: true),
                   CellText(
                     x.mean - avg > 5
-                        ? tr('Works harder than the others')
-                        : (avg - x.mean > 5 ? tr('Works less than the others') : ''),
+                        ? 'Works harder than the others'
+                        : (avg - x.mean > 5 ? 'Works less than the others' : ''),
                     color: AppColors.warn,
                   ),
                 ],
@@ -892,7 +887,7 @@ class _LogsPageState extends State<LogsPage> {
         SizedBox(
           height: 460,
           child: points.length < 2
-              ? AppCard(child: Center(child: Muted(tr('No GPS track in this log'))))
+              ? AppCard(child: Center(child: Muted('No GPS track in this log')))
               : ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: FlutterMap(
@@ -974,12 +969,12 @@ class _LogsPageState extends State<LogsPage> {
                 width: 320,
                 child: TextField(
                   onChanged: (t) => setState(() => _search = t),
-                  decoration: InputDecoration(hintText: tr('Search'), prefixIcon: const Icon(Icons.search, size: 18)),
+                  decoration: InputDecoration(hintText: 'Search', prefixIcon: const Icon(Icons.search, size: 18)),
                 ),
               ),
               const SizedBox(width: 10),
               if (a.defaults.isNotEmpty)
-                CheckRow(tr('Only changed from default'), _onlyChanged, (v) => setState(() => _onlyChanged = v)),
+                CheckRow('Only changed from default', _onlyChanged, (v) => setState(() => _onlyChanged = v)),
               const Spacer(),
               Muted('${names.length} / ${a.params.length}'),
             ],
@@ -987,10 +982,10 @@ class _LogsPageState extends State<LogsPage> {
           const SizedBox(height: 8),
           SimpleTable(
             columns: [
-              Col(tr('Name'), flex: 3),
-              Col(tr('In log'), flex: 2),
-              Col(tr('Default'), flex: 2),
-              Col(tr('Vehicle now'), flex: 2),
+              Col('Name', flex: 3),
+              Col('In log', flex: 2),
+              Col('Default', flex: 2),
+              Col('Vehicle now', flex: 2),
             ],
             rowHeight: 30,
             rows: [
@@ -1009,7 +1004,7 @@ class _LogsPageState extends State<LogsPage> {
                 ],
             ],
           ),
-          if (names.length > 400) Muted(tr('Showing the first 400; refine the search.'), size: 12),
+          if (names.length > 400) Muted('Showing the first 400; refine the search.', size: 12),
         ],
       ),
     );
@@ -1050,16 +1045,11 @@ class _LogsPageState extends State<LogsPage> {
         AppCard(
           title: 'A: ${s.a!.name}   ·   B: ${s.b!.name}',
           child: SimpleTable(
-            columns: [
-              Col(tr('Value'), flex: 3),
-              const Col('A', flex: 1),
-              const Col('B', flex: 1),
-              Col(tr('Change'), flex: 1),
-            ],
+            columns: [Col('Value', flex: 3), const Col('A', flex: 1), const Col('B', flex: 1), Col('Change', flex: 1)],
             rows: [
               for (final (label, x, y, d) in rows)
                 [
-                  CellText(tr(label)),
+                  CellText(label),
                   CellText(f(x, d), mono: true),
                   CellText(f(y, d), mono: true),
                   CellText(
@@ -1072,9 +1062,9 @@ class _LogsPageState extends State<LogsPage> {
         ),
         const SizedBox(height: 12),
         AppCard(
-          title: '${tr('Parameter differences')} (${changed.length})',
+          title: 'Parameter differences (${changed.length})',
           child: SimpleTable(
-            columns: [Col(tr('Name'), flex: 2), const Col('A', flex: 1), const Col('B', flex: 1)],
+            columns: [Col('Name', flex: 2), const Col('A', flex: 1), const Col('B', flex: 1)],
             rowHeight: 28,
             rows: [
               for (final n in changed.take(200))
@@ -1087,7 +1077,7 @@ class _LogsPageState extends State<LogsPage> {
           ),
         ),
         const SizedBox(height: 12),
-        Muted(tr('Charts show both logs lined up at the first arming: A solid, B faded.'), size: 12),
+        Muted('Charts show both logs lined up at the first arming: A solid, B faded.', size: 12),
       ],
     );
   }

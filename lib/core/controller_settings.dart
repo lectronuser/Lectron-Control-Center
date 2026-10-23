@@ -207,7 +207,7 @@ extension SettingsActions on BoardController {
   }
 
   void motorStop() {
-    for (var motor = 1; motor <= 8; motor++) {
+    for (var motor = 1; motor <= 12; motor++) {
       sendCommand(Mav.cmdDoMotorTest, [motor, 0, 0, 0, 1, 0]);
     }
     setStatus('motor', 'Stop sent to all motors', Tone.muted);

@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import '../core/board_controller.dart';
 import '../core/models.dart';
 import '../core/param_meta.dart';
-import 'i18n.dart';
 import 'pages.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -26,7 +25,7 @@ List<SearchHit> searchAll(BoardController c, String query, {int limit = 40}) {
   bool matches(String text) => words.every(text.contains);
   final hits = <SearchHit>[
     for (final p in pageInfos)
-      if (matches('${p.label} ${tr(p.label)} ${p.keywords} ${tr(p.group)}'.toLowerCase())) SearchHit.page(p),
+      if (matches('${p.label} ${p.label} ${p.keywords} ${p.group}'.toLowerCase())) SearchHit.page(p),
   ];
   final upper = q.toUpperCase();
   final names = c.params.keys.toList()..sort();
@@ -110,7 +109,7 @@ class _SearchDialogState extends State<_SearchDialog> {
                     if (hits.isNotEmpty) _open(hits[_selected]);
                   },
                   decoration: InputDecoration(
-                    hintText: tr('Search pages and parameters, e.g. RTL_ALT, fence, battery capacity'),
+                    hintText: 'Search pages and parameters, e.g. RTL_ALT, fence, battery capacity',
                     prefixIcon: const Icon(Icons.search, size: 18),
                   ),
                 ),
@@ -119,7 +118,7 @@ class _SearchDialogState extends State<_SearchDialog> {
             const Divider(),
             Expanded(
               child: hits.isEmpty
-                  ? Center(child: Muted(tr('Nothing found')))
+                  ? Center(child: Muted('Nothing found'))
                   : ListView.builder(
                       itemCount: hits.length,
                       itemBuilder: (context, i) {
@@ -132,11 +131,11 @@ class _SearchDialogState extends State<_SearchDialog> {
                             dense: true,
                             leading: Icon(page?.icon ?? Icons.tune, size: 18, color: AppColors.muted),
                             title: page != null
-                                ? Text(tr(page.label))
+                                ? Text(page.label)
                                 : Text(hit.param!, style: monoStyle.copyWith(fontSize: 13)),
                             subtitle: Text(
                               page != null
-                                  ? tr(page.group)
+                                  ? page.group
                                   : [
                                       if (meta != null && meta.title.isNotEmpty) meta.title,
                                       formatValue(widget.c, hit.param!),

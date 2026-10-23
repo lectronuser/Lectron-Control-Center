@@ -21,11 +21,12 @@ class VehicleIssue {
 const Map<AppPage, List<String>> pageParamPrefixes = {
   AppPage.calibration: ['INS_', 'COMPASS_', 'AHRS_', 'CAL_', 'SENS_BOARD', 'EK3_', 'EKF2_'],
   AppPage.receiver: ['RC', 'FLTMODE', 'RSSI_', 'COM_FLTMODE', 'COM_RC'],
-  AppPage.safety: ['FS_', 'BATT', 'FENCE_', 'ARMING_', 'COM_', 'NAV_DLL', 'NAV_RCL', 'GF_', 'BAT', 'RTL_'],
   AppPage.outputs: ['SERVO', 'MOT_', 'FRAME_', 'PWM_', 'CA_', 'DSHOT', 'SYS_AUTOSTART'],
-  AppPage.ports: ['SERIAL', 'SER_', 'MAV_', 'NET_'],
-  AppPage.peripherals: ['GPS', 'RNGFND', 'ARSPD', 'FLOW_', 'NTF_', 'CAM', 'MNT', 'LED', 'BUZZ'],
-  AppPage.osd: ['OSD'],
+  AppPage.settings: [
+    ...['SERIAL', 'SER_', 'MAV_', 'NET_', 'OSD'],
+    ...['FS_', 'BATT', 'FENCE_', 'ARMING_', 'COM_', 'NAV_DLL', 'NAV_RCL', 'GF_', 'BAT', 'RTL_'],
+  ],
+  AppPage.params: ['GPS', 'RNGFND', 'ARSPD', 'FLOW_', 'NTF_', 'CAM', 'MNT', 'LED', 'BUZZ'],
 };
 
 extension VehicleChecks on BoardController {
@@ -112,7 +113,7 @@ extension VehicleChecks on BoardController {
                 ? 'No compass detected. On USB power alone some boards do not power the GPS/compass: connect the battery and reboot.'
                 : 'No compass detected',
             removable: true,
-            fix: AppPage.peripherals,
+            fix: AppPage.params,
             action: 'Peripherals',
           ),
         );

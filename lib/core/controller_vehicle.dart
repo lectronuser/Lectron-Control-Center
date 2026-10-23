@@ -451,14 +451,6 @@ extension VehicleState on BoardController {
     notify('Auto-connect: ${pick.label}');
     unawaited(_openConnection(pick.id, selectedBaud));
   }
-
-  // ---- language ---------------------------------------------------------------------------------
-
-  void setLanguage(String code) {
-    language = code;
-    storage.put('language', code);
-    _changed();
-  }
 }
 
 /// PX4 custom_mode values (main mode << 16 | sub mode << 24) the user can pick.

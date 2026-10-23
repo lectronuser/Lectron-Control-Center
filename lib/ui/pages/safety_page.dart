@@ -1,40 +1,33 @@
 import 'package:flutter/material.dart';
 
 import '../../core/board_controller.dart';
-import '../banners.dart';
-import '../i18n.dart';
 import '../param_form.dart';
 import '../widgets.dart';
 
-/// Failsafes, geofence, return-to-launch and arming checks.
-class SafetyPage extends StatelessWidget {
-  const SafetyPage(this.c, {super.key});
+/// Failsafes, geofence, return-to-launch and arming checks; a tab of the Board Settings page.
+class SafetyView extends StatelessWidget {
+  const SafetyView(this.c, {super.key});
   final BoardController c;
 
   @override
   Widget build(BuildContext context) {
+    if (c.target == null) return Muted('Connect a vehicle to set its failsafes');
     final sections = c.isPx4 ? _px4 : _ardupilot;
-    return PageFrame(
-      title: tr('Safety & Failsafes'),
-      subtitle: tr('What the vehicle does when the radio, telemetry or battery fails, geofence and arming checks'),
-      actions: [if (c.target != null) StageButton(c, 'Recommended failsafes', c.recommendedFailsafes())],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IssueBanners(c, only: const {AppPage.safety}),
-          ChangedSinceBoot(c, AppPage.safety),
-          if (c.target == null)
-            Muted(tr('Connect a vehicle to set its failsafes'))
-          else ...[
-            if (c.readinessIssues().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(children: [for (final i in c.readinessIssues()) Note(i)]),
-              ),
-            ParamSections(c, sections, labelWidth: 250),
-          ],
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: StageButton(c, 'Recommended failsafes', c.recommendedFailsafes()),
+        ),
+        const SizedBox(height: 12),
+        if (c.readinessIssues().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(children: [for (final i in c.readinessIssues()) Note(i)]),
+          ),
+        ParamSections(c, sections, labelWidth: 250),
+      ],
     );
   }
 }

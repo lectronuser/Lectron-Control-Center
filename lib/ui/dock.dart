@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../core/board_controller.dart';
 import '../core/models.dart';
 import '../mavlink/mavlink.dart';
-import 'i18n.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -58,8 +57,8 @@ class _DockState extends State<Dock> {
                   showSelectedIcon: false,
                   style: const ButtonStyle(visualDensity: VisualDensity(horizontal: -2, vertical: -3)),
                   segments: [
-                    ButtonSegment(value: false, label: Text('${tr('Watch')} (${c.watchPins.length})')),
-                    ButtonSegment(value: true, label: Text(tr('Messages'))),
+                    ButtonSegment(value: false, label: Text('Watch (${c.watchPins.length})')),
+                    ButtonSegment(value: true, label: Text('Messages')),
                   ],
                   selected: {_messages},
                   onSelectionChanged: (s) => setState(() => _messages = s.first),
@@ -74,7 +73,7 @@ class _DockState extends State<Dock> {
                       onSubmitted: (_) => _addPin(),
                       style: monoStyle.copyWith(fontSize: 12),
                       decoration: InputDecoration(
-                        hintText: tr('MSG.field or parameter, e.g. ATTITUDE.roll'),
+                        hintText: 'MSG.field or parameter, e.g. ATTITUDE.roll',
                         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                       ),
                     ),
@@ -83,14 +82,10 @@ class _DockState extends State<Dock> {
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                     onPressed: _addPin,
-                    child: Text(tr('Pin')),
+                    child: Text('Pin'),
                   ),
                 ],
-                IconButton(
-                  tooltip: tr('Close (Ctrl+J)'),
-                  onPressed: c.toggleDock,
-                  icon: const Icon(Icons.close, size: 18),
-                ),
+                IconButton(tooltip: 'Close (Ctrl+J)', onPressed: c.toggleDock, icon: const Icon(Icons.close, size: 18)),
               ],
             ),
           ),
@@ -108,9 +103,7 @@ class _WatchList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (c.watchPins.isEmpty) {
-      return Center(
-        child: Muted(tr('Pin a value here from the Parameters page, or type MSG.field above and press Pin.')),
-      );
+      return Center(child: Muted('Pin a value here from the Parameters page, or type MSG.field above and press Pin.'));
     }
     return ListView(
       scrollDirection: Axis.horizontal,
@@ -206,7 +199,7 @@ class _MessageList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final entries = c.statusLog.reversed.take(200).toList();
-    if (entries.isEmpty) return Center(child: Muted(tr('No messages yet')));
+    if (entries.isEmpty) return Center(child: Muted('No messages yet'));
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       itemCount: entries.length,

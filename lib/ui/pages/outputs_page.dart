@@ -3,9 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/board_controller.dart';
-import '../../core/models.dart';
 import '../banners.dart';
-import '../i18n.dart';
 import '../param_form.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -34,6 +32,49 @@ const Map<int, String> px4Airframes = {
 /// ArduPilot SERVOn_FUNCTION values that drive motors; only these are ever spun.
 bool isMotorFunction(int f) => (f >= 33 && f <= 40) || (f >= 82 && f <= 85) || (f >= 160 && f <= 179);
 
+/// The current frame with its motor diagram; the frame itself is chosen on the Frame page.
+class FrameCard extends StatelessWidget {
+  const FrameCard(this.c, {super.key});
+  final BoardController c;
+
+  @override
+  Widget build(BuildContext context) {
+    final layout = c.frameLayout;
+    return AppCard(
+      title: c.isPx4 ? 'Airframe' : 'Frame',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Muted(layout?.name ?? 'No frame selected')),
+              OutlinedButton.icon(
+                onPressed: () => c.showPage(AppPage.frame),
+                icon: const Icon(Icons.swap_horiz, size: 16),
+                label: Text('Change frame…'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (layout != null)
+            Center(
+              child: FrameDiagram(
+                layout: layout,
+                size: 280,
+                onTap: c.ident.phase == IdentPhase.asking ? c.identAnswer : null,
+                seen: c.ident.seen,
+              ),
+            )
+          else
+            Muted('No motor diagram for this frame'),
+          if (layout != null)
+            Center(child: Muted('${layout.name}  ·  green = clockwise, blue = counter-clockwise', size: 12)),
+        ],
+      ),
+    );
+  }
+}
+
 /// Frame, motor order and direction, motor identification, outputs and ESC protocol.
 class OutputsPage extends StatefulWidget {
   const OutputsPage(this.c, {super.key});
@@ -53,70 +94,26 @@ class _OutputsPageState extends State<OutputsPage> {
   Widget build(BuildContext context) {
     if (c.target == null) {
       return PageFrame(
-        title: tr('Motors & Outputs'),
-        subtitle: tr('Frame, motor order, outputs and ESC protocol'),
-        child: Muted(tr('Connect a vehicle to set up its outputs')),
+        title: 'Motors & Outputs',
+        subtitle: 'Frame, motor order, outputs and ESC protocol',
+        child: Muted('Connect a vehicle to set up its outputs'),
       );
     }
     final layout = c.frameLayout;
-    final frameCard = AppCard(
-      title: c.isPx4 ? tr('Airframe') : tr('Frame'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (c.isPx4) ...[
-            ParamForm(c, [
-              PField.one(
-                'SYS_AUTOSTART',
-                label: 'Airframe',
-                options: {
-                  0: tr('None'),
-                  ...px4Airframes,
-                  if (!px4Airframes.containsKey(c.paramInt('SYS_AUTOSTART')) && c.paramInt('SYS_AUTOSTART') != 0)
-                    c.paramInt('SYS_AUTOSTART'): '${tr('Current')} (${c.paramInt('SYS_AUTOSTART')})',
-                },
-              ),
-            ]),
-            const Note('Changing the airframe resets the related parameters and needs a reboot.', tone: Tone.muted),
-            ParamForm(c, [PField.one('CA_ROTOR_COUNT'), PField.one('CA_AIRFRAME')]),
-          ] else
-            ParamForm(c, [
-              PField.one('FRAME_CLASS'),
-              PField.one('FRAME_TYPE'),
-              PField.one('Q_ENABLE'),
-              PField.one('Q_FRAME_CLASS'),
-              PField.one('Q_FRAME_TYPE'),
-            ]),
-          const SizedBox(height: 12),
-          if (layout != null)
-            Center(
-              child: FrameDiagram(
-                layout: layout,
-                size: 280,
-                onTap: c.ident.phase == IdentPhase.asking ? c.identAnswer : null,
-                seen: c.ident.seen,
-              ),
-            )
-          else
-            Muted(tr('No motor diagram for this frame')),
-          if (layout != null)
-            Center(child: Muted('${layout.name}  ·  ${tr('green = clockwise, blue = counter-clockwise')}', size: 12)),
-        ],
-      ),
-    );
+    final frameCard = FrameCard(c);
     final identCard = AppCard(
-      title: tr('Identify motors'),
+      title: 'Identify motors',
       child: _Identify(c, propsOff: _propsOff, throttle: _throttle),
     );
     final testCard = AppCard(
-      title: tr('Motor test'),
+      title: 'Motor test',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CheckRow(tr('Propellers are removed'), _propsOff, (v) => setState(() => _propsOff = v)),
+          CheckRow('Propellers are removed', _propsOff, (v) => setState(() => _propsOff = v)),
           Row(
             children: [
-              Muted('${tr('Throttle')} $_throttle %'),
+              Muted('Throttle $_throttle %'),
               Expanded(
                 child: Slider(
                   value: _throttle.toDouble(),
@@ -135,20 +132,20 @@ class _OutputsPageState extends State<OutputsPage> {
               for (var i = 0; i < (layout?.positions.length ?? 4); i++)
                 OutlinedButton(
                   onPressed: _propsOff ? () => c.spinMotor(i, throttle: _throttle, seconds: 2) : null,
-                  child: Text('${tr('Motor')} ${String.fromCharCode(65 + i)}'),
+                  child: Text('Motor ${String.fromCharCode(65 + i)}'),
                 ),
-              DangerButton(label: tr('Stop all'), onPressed: c.motorStop),
+              DangerButton(label: 'Stop all', onPressed: c.motorStop),
             ],
           ),
           const SizedBox(height: 6),
-          Muted(tr('Letters follow the test order: A is front right, then clockwise.'), size: 12),
+          Muted('Letters follow the test order: A is front right, then clockwise.', size: 12),
           StatusLine(c.status('ident')),
         ],
       ),
     );
     return PageFrame(
-      title: tr('Motors & Outputs'),
-      subtitle: tr('Frame, motor order, outputs and ESC protocol'),
+      title: 'Motors & Outputs',
+      subtitle: 'Frame, motor order, outputs and ESC protocol',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -169,7 +166,7 @@ class _OutputsPageState extends State<OutputsPage> {
                   ),
           ),
           const SizedBox(height: 16),
-          AppCard(title: tr('Outputs'), child: c.isPx4 ? _Px4Outputs(c) : _ApOutputs(c)),
+          AppCard(title: 'Outputs', child: c.isPx4 ? _Px4Outputs(c) : _ApOutputs(c)),
           const SizedBox(height: 16),
           ParamSections(c, [
             ParamSection(
@@ -222,20 +219,18 @@ class _Identify extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Muted(
-          tr(
-            'Spins one motor after another at low throttle. Click on the diagram where you saw it spin. Servo outputs are never driven.',
-          ),
+          'Spins one motor after another at low throttle. Click on the diagram where you saw it spin. Servo outputs are never driven.',
           size: 12.5,
         ),
         const SizedBox(height: 10),
         if (s.phase == IdentPhase.asking)
           Text(
-            '${tr('Motor')} ${String.fromCharCode(65 + s.index)}: ${tr(s.message)}',
+            'Motor ${String.fromCharCode(65 + s.index)}: ${s.message}',
             style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600),
           ),
         if (s.phase == IdentPhase.done) ...[
           Text(
-            tr(s.message),
+            s.message,
             style: TextStyle(
               color: c.identMismatches().isEmpty ? AppColors.ok : AppColors.warn,
               fontWeight: FontWeight.w600,
@@ -243,14 +238,14 @@ class _Identify extends StatelessWidget {
           ),
           for (final (asked, spun) in c.identMismatches())
             Muted(
-              '${tr('Motor')} ${String.fromCharCode(65 + asked)} → ${spun < 0 ? tr('did not spin') : '${tr('spun at position')} ${String.fromCharCode(65 + spun)}'}',
+              'Motor ${String.fromCharCode(65 + asked)} → ${spun < 0 ? 'did not spin' : 'spun at position ${String.fromCharCode(65 + spun)}'}',
               size: 12,
             ),
           if (fix.isNotEmpty) ...[
             const SizedBox(height: 6),
             Muted(fix.entries.map((e) => 'SERVO${e.key}_FUNCTION = ${e.value}').join(', '), size: 12),
             const SizedBox(height: 6),
-            OutlinedButton(onPressed: c.applyIdentFix, child: Text(tr('Stage the fix'))),
+            OutlinedButton(onPressed: c.applyIdentFix, child: Text('Stage the fix')),
           ],
         ],
         const SizedBox(height: 10),
@@ -262,12 +257,12 @@ class _Identify extends StatelessWidget {
               FilledButton.icon(
                 onPressed: propsOff && layout != null && c.hb?.armed != true ? c.startMotorIdent : null,
                 icon: const Icon(Icons.play_arrow, size: 16),
-                label: Text(tr('Start')),
+                label: Text('Start'),
               )
             else ...[
-              OutlinedButton(onPressed: c.identRepeat, child: Text(tr('Spin again'))),
-              OutlinedButton(onPressed: () => c.identAnswer(-1), child: Text(tr('Nothing spun'))),
-              DangerButton(label: tr('Stop'), onPressed: c.stopMotorIdent),
+              OutlinedButton(onPressed: c.identRepeat, child: Text('Spin again')),
+              OutlinedButton(onPressed: () => c.identAnswer(-1), child: Text('Nothing spun')),
+              DangerButton(label: 'Stop', onPressed: c.stopMotorIdent),
             ],
           ],
         ),
@@ -391,13 +386,13 @@ class _ApOutputs extends StatelessWidget {
     final servo = c.servoAll;
     String name(int i) => io ? (i <= 8 ? 'MAIN $i' : 'AUX ${i - 8}') : 'OUT $i';
     final columns = [
-      Col(tr('Output'), width: 90),
-      Col(tr('Function'), flex: 4),
-      Col(tr('Min'), width: 90),
-      Col(tr('Trim'), width: 90),
-      Col(tr('Max'), width: 90),
-      Col(tr('Reversed'), flex: 2),
-      Col(tr('Now'), width: 70),
+      Col('Output', width: 90),
+      Col('Function', flex: 4),
+      Col('Min', width: 90),
+      Col('Trim', width: 90),
+      Col('Max', width: 90),
+      Col('Reversed', flex: 2),
+      Col('Now', width: 70),
     ];
     return SimpleTable(
       columns: columns,
@@ -435,14 +430,14 @@ class _Px4Outputs extends StatelessWidget {
         if (RegExp(r'^(PWM_MAIN|PWM_AUX|PWM_EXTRA|DSHOT|UAVCAN_EC|UAVCAN_SV)_FUNC\d+$').hasMatch(n)) n,
     ];
     if (funcs.isEmpty) {
-      return Muted(c.fullLoaded ? tr('No output function parameters (older PX4?)') : tr('Waiting for the parameters'));
+      return Muted(c.fullLoaded ? 'No output function parameters (older PX4?)' : 'Waiting for the parameters');
     }
     final columns = [
-      Col(tr('Output'), width: 150),
-      Col(tr('Function'), flex: 4),
-      Col(tr('Min'), width: 90),
-      Col(tr('Max'), width: 90),
-      Col(tr('Disarmed'), width: 90),
+      Col('Output', width: 150),
+      Col('Function', flex: 4),
+      Col('Min', width: 90),
+      Col('Max', width: 90),
+      Col('Disarmed', width: 90),
     ];
     return SimpleTable(
       columns: columns,

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../../mavlink/mavlink.dart';
-import '../i18n.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -35,7 +34,7 @@ class _MessagesPageState extends State<MessagesPage> {
       () => getSaveLocation(
         suggestedName: 'board_test_${now.year}${two(now.month)}${two(now.day)}_${two(now.hour)}${two(now.minute)}.log',
         acceptedTypeGroups: [
-          XTypeGroup(label: tr('Log files'), extensions: ['log', 'txt']),
+          XTypeGroup(label: 'Log files', extensions: ['log', 'txt']),
         ],
       ),
     );
@@ -57,16 +56,16 @@ class _MessagesPageState extends State<MessagesPage> {
     ];
     final logDir = c.storage.logDir;
     return PageFrame(
-      title: tr('Messages'),
-      subtitle: tr('Status text, warnings and command results'),
+      title: 'Messages',
+      subtitle: 'Status text, warnings and command results',
       scroll: false,
       actions: [
         SegmentedButton<int>(
           showSelectedIcon: false,
           segments: [
-            ButtonSegment(value: Mav.severityDebug, label: Text(tr('All'))),
-            ButtonSegment(value: Mav.severityWarning, label: Text(tr('Warnings'))),
-            ButtonSegment(value: Mav.severityError, label: Text(tr('Errors'))),
+            ButtonSegment(value: Mav.severityDebug, label: Text('All')),
+            ButtonSegment(value: Mav.severityWarning, label: Text('Warnings')),
+            ButtonSegment(value: Mav.severityError, label: Text('Errors')),
           ],
           selected: {_maxSeverity},
           onSelectionChanged: (s) => setState(() => _maxSeverity = s.first),
@@ -74,12 +73,12 @@ class _MessagesPageState extends State<MessagesPage> {
         OutlinedButton.icon(
           onPressed: entries.isEmpty ? null : () => _export(entries),
           icon: const Icon(Icons.save_alt, size: 16),
-          label: Text(tr('Export…')),
+          label: Text('Export…'),
         ),
         OutlinedButton.icon(
           onPressed: c.statusLog.isEmpty ? null : c.clearStatusLog,
           icon: const Icon(Icons.delete_outline, size: 16),
-          label: Text(tr('Clear')),
+          label: Text('Clear'),
         ),
       ],
       child: AppCard(
@@ -91,20 +90,20 @@ class _MessagesPageState extends State<MessagesPage> {
               TextField(
                 onChanged: (t) => setState(() => _search = t),
                 decoration: InputDecoration(
-                  hintText: tr('Filter messages'),
+                  hintText: 'Filter messages',
                   prefixIcon: Icon(Icons.search, size: 18),
                   prefixIconConstraints: BoxConstraints(minWidth: 38),
                 ),
               ),
               const SizedBox(height: 6),
               SimpleTable(
-                columns: [Col(tr('Time'), width: 90), Col(tr('Severity'), width: 120), Col(tr('Message'))],
+                columns: [Col('Time', width: 90), Col('Severity', width: 120), Col('Message')],
                 rows: [],
-                empty: tr(''),
+                empty: '',
               ),
               Expanded(
                 child: entries.isEmpty
-                    ? Center(child: Muted(tr('No messages')))
+                    ? Center(child: Muted('No messages'))
                     : ListView.builder(
                         // newest at the bottom, and the list stays there while messages arrive
                         reverse: true,
@@ -139,7 +138,7 @@ class _MessagesPageState extends State<MessagesPage> {
                         openExternally(logDir.path);
                       },
                       icon: const Icon(Icons.folder_open, size: 16),
-                      label: Text(tr('Open Folder')),
+                      label: Text('Open Folder'),
                     ),
                 ],
               ),
