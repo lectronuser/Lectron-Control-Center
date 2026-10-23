@@ -30,7 +30,7 @@ extension FirmwareActions on BoardController {
     while (DateTime.now().isBefore(end)) {
       for (final p in this.factory.listPorts()) {
         // only USB serial: probing a GPS or modem port with bootloader bytes is pointless
-        if (p.network || !p.usb) continue;
+        if (!p.usb) continue;
         Transport link;
         try {
           link = await this.factory.open(p.id, 115200);

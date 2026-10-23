@@ -210,7 +210,7 @@ class _Disconnected extends StatelessWidget {
   Widget build(BuildContext context) {
     final steps = [
       tr('Plug in the flight controller over USB. With Auto on, it connects by itself.'),
-      tr('Or pick a USB port or a UDP link in the top bar and press Connect.'),
+      tr('Or pick the serial port (USB or UART) and the baud rate in the top bar and press Connect.'),
       tr('Read the yellow banners: they list missing sensors and calibrations.'),
       tr('New vehicle: Setup → Setup Wizard. Existing vehicle: save a parameter backup first.'),
     ];
@@ -241,12 +241,6 @@ class _Disconnected extends StatelessWidget {
                       ],
                     ),
                   ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: c.connected || c.job != null ? null : () => showNetworkDialog(context, c),
-                  icon: const Icon(Icons.lan_outlined, size: 16),
-                  label: Text(tr('UDP link…')),
-                ),
               ],
             ),
           ),

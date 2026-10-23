@@ -2,10 +2,17 @@
 /// stay as they are, as Turkish pilots use them.
 const Map<String, String> trStrings = {
   // ---- app, shell, navigation ----
-  'ArduPilot & PX4 setup': 'ArduPilot ve PX4 kurulumu',
+  'Board test, firmware and control': 'Kart testi, yazılım yükleme ve kontrol',
   'Vehicle': 'Araç',
   'Setup': 'Kurulum',
-  'For Advanced Users': 'İleri Düzey',
+  'Mission Computer': 'Görev Bilgisayarı',
+  'Flight Controller': 'Uçuş Kontrolcüsü',
+  'Report & Test': 'Rapor ve Test',
+  'Mission computer such as a Raspberry Pi CM5 next to the flight controller':
+      'Uçuş kontrolcüsünün yanındaki Raspberry Pi CM5 gibi görev bilgisayarı',
+  'Some boards are only a flight controller, others also carry a mission computer such as a CM5. The tools for the mission computer come to this section.': 'Bazı kartlar yalnızca uçuş kontrolcüsünden oluşur, bazılarında ayrıca CM5 gibi bir görev bilgisayarı bulunur. Görev bilgisayarı araçları bu bölüme gelecek.',
+  'Or pick the serial port (USB or UART) and the baud rate in the top bar and press Connect.':
+      'Ya da üst çubuktan seri portu (USB veya UART) ve baud hızını seçip Bağlan\'a basın.',
   'App': 'Uygulama',
   'Lectron Pi5-H7': 'Lectron Pi5-H7',
   'Overview': 'Genel Bakış',
@@ -36,8 +43,6 @@ const Map<String, String> trStrings = {
   'Collapse sidebar': 'Kenar çubuğunu daralt',
   'Settings on this page changed since the vehicle booted': 'Bu sayfadaki ayarlar araç açıldığından beri değişti',
   'No ports found': 'Port bulunamadı',
-  'UDP link…': 'UDP bağlantısı…',
-  'Baud rate is not used for network links': 'Ağ bağlantılarında baud hızı kullanılmaz',
   'Baud rate': 'Baud hızı',
   'Connect': 'Bağlan',
   'Disconnect': 'Bağlantıyı kes',
@@ -49,11 +54,7 @@ const Map<String, String> trStrings = {
   'Before you unplug': 'Çıkarmadan önce',
   'These need attention before flying:': 'Uçuştan önce bunlara bakılmalı:',
   'Disconnect anyway': 'Yine de kes',
-  'UDP link': 'UDP bağlantısı',
-  'UDP port': 'UDP portu',
-  'Recent': 'Son kullanılanlar',
   'Port': 'Port',
-  'Listens on this port and replies to whoever sends.': 'Bu portu dinler ve gönderen kim ise ona cevap verir.',
   'Connected': 'Bağlı',
   'Disconnected': 'Bağlı değil',
   'Waiting heartbeat': 'Heartbeat bekleniyor',
@@ -152,8 +153,6 @@ const Map<String, String> trStrings = {
   'Getting started': 'Başlarken',
   'Plug in the flight controller over USB. With Auto on, it connects by itself.':
       'Uçuş kontrolcüsünü USB ile takın. Otomatik açıksa kendiliğinden bağlanır.',
-  'Or pick a USB port or a UDP link in the top bar and press Connect.':
-      'Ya da üst çubuktan bir USB portu veya UDP bağlantısı seçip Bağlan\'a basın.',
   'Read the yellow banners: they list missing sensors and calibrations.':
       'Sarı uyarıları okuyun: eksik sensörleri ve kalibrasyonları listelerler.',
   'New vehicle: Setup → Setup Wizard. Existing vehicle: save a parameter backup first.':

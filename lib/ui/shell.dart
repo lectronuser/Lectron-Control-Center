@@ -16,6 +16,7 @@ import 'pages/firmware_page.dart';
 import 'pages/live_page.dart';
 import 'pages/logs_page.dart';
 import 'pages/messages_page.dart';
+import 'pages/mission_computer_page.dart';
 import 'pages/motors_page.dart';
 import 'pages/osd_page.dart';
 import 'pages/outputs_page.dart';
@@ -116,6 +117,7 @@ class _ShellState extends State<Shell> {
 Widget _page(BoardController c) => switch (c.page) {
   AppPage.overview => OverviewPage(c),
   AppPage.messages => MessagesPage(c),
+  AppPage.missionComputer => MissionComputerPage(c),
   AppPage.wizard => WizardPage(c),
   AppPage.calibration => CalibrationPage(c),
   AppPage.receiver => ReceiverPage(c),
@@ -148,14 +150,7 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final busy = c.connected || c.job != null;
     final link = c.linkStatus;
-    final selected = c.selectedPort ?? '';
-    final network = isNetworkLink(selected);
-    final items = <String, String>{
-      for (final p in c.ports) p.id: _portLabel(p),
-      for (final r in c.recentLinks)
-        if (!c.ports.any((p) => p.id == r.id) && (isNetworkLink(r.id))) r.id: networkLabel(r.id),
-      if (selected.isNotEmpty && !c.ports.any((p) => p.id == selected)) selected: networkLabel(selected),
-    };
+    final items = <String, String>{for (final p in c.ports) p.id: _portLabel(p)};
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -172,7 +167,7 @@ class _TopBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(productName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              Muted(tr('ArduPilot & PX4 setup'), size: 11),
+              Muted(tr('Board test, firmware and control'), size: 11),
             ],
           ),
           const Spacer(),
@@ -189,22 +184,14 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          Tooltip(
-            message: tr('UDP link…'),
-            child: IconButton(
-              onPressed: busy ? null : () => showNetworkDialog(context, c),
-              icon: const Icon(Icons.lan_outlined, size: 20),
-            ),
-          ),
-          const SizedBox(width: 2),
+          const SizedBox(width: 8),
           SizedBox(
             width: 104,
             child: Tooltip(
-              message: network ? tr('Baud rate is not used for network links') : tr('Baud rate'),
+              message: tr('Baud rate'),
               child: _Picker<int>(
                 value: c.selectedBaud,
-                enabled: !busy && !network,
+                enabled: !busy,
                 items: {for (final b in baudRates) b: '$b'},
                 onChanged: (b) => c.selectBaud(b ?? defaultBaud),
               ),
@@ -304,62 +291,6 @@ class _Picker<T> extends StatelessWidget {
       ),
     );
   }
-}
-
-/// UDP listener on a chosen port, and recent links.
-Future<void> showNetworkDialog(BuildContext context, BoardController c) async {
-  final port = TextEditingController(text: '${DeviceTransportFactory.udpPort}');
-  final id = await showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(tr('UDP link'), style: Theme.of(context).textTheme.titleMedium),
-      content: SizedBox(
-        width: 440,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (c.recentLinks.isNotEmpty) ...[
-              Muted(tr('Recent')),
-              for (final r in c.recentLinks.take(5))
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.history, size: 18),
-                  title: Text(isNetworkLink(r.id) ? networkLabel(r.id) : r.id),
-                  subtitle: isNetworkLink(r.id) ? null : Text('${r.baud} baud'),
-                  onTap: () => Navigator.pop(context, '${r.id}|${r.baud}'),
-                ),
-              const Divider(height: 24),
-            ],
-            Row(
-              children: [
-                Text(tr('UDP port')),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 110,
-                  child: TextField(
-                    controller: port,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(hintText: tr('Port')),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Muted(tr('Listens on this port and replies to whoever sends.'), size: 12),
-          ],
-        ),
-      ),
-      actions: [
-        OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
-        FilledButton(onPressed: () => Navigator.pop(context, 'udp:${port.text.trim()}'), child: Text(tr('Connect'))),
-      ],
-    ),
-  );
-  port.dispose();
-  if (id == null) return;
-  final parts = id.split('|');
-  await c.connectTo(parts[0], baud: parts.length > 1 ? int.tryParse(parts[1]) : null);
 }
 
 // ---- vehicle status strip -------------------------------------------------------------------------
@@ -783,7 +714,7 @@ class _StatusBar extends StatelessWidget {
             ),
           if (c.connected && device.isNotEmpty) ...[
             const SizedBox(width: 16),
-            Muted(isNetworkLink(device) ? device : '$device @ ${c.portBaud}', size: 12),
+            Muted('$device @ ${c.portBaud}', size: 12),
           ],
           const SizedBox(width: 12),
           Tooltip(

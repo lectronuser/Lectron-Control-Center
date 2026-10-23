@@ -46,11 +46,12 @@ const int paramListBatch = 40; // missing parameters re-requested per round
 const int outboxMax = 2000; // frames waiting for a slow link
 
 enum AppPage {
-  // vehicle
+  // mission computer
+  missionComputer,
+  // flight controller
   overview,
   messages,
   firmware,
-  // setup
   wizard,
   calibration,
   receiver,
@@ -60,15 +61,14 @@ enum AppPage {
   peripherals,
   recipes,
   osd,
-  // advanced
   params,
   logs,
   files,
-  // Lectron Pi5-H7 board test
   board,
+  settings,
+  // report and test
   test,
   motors,
-  settings,
   live,
   // app
   app,
@@ -106,8 +106,10 @@ class BoardController extends ChangeNotifier {
     for (final line in (storage.getString('recent') ?? '').split('\n')) {
       final parts = line.split('|');
       final baud = parts.length == 2 ? int.tryParse(parts[1]) : null;
-      // TCP links of older versions are no longer supported
-      if (baud != null && !parts[0].startsWith('tcp:')) recentLinks.add(RecentLink(parts[0], baud));
+      // network links of older versions are no longer supported
+      if (baud != null && !parts[0].startsWith('tcp:') && !parts[0].startsWith('udp:')) {
+        recentLinks.add(RecentLink(parts[0], baud));
+      }
     }
     _applyTelem3Fitted();
     messageListeners.add(_setupMessage);
@@ -495,8 +497,8 @@ class BoardController extends ChangeNotifier {
   }
 
   void _connectionError(String text) {
-    final device = portDevice ?? 'udp:';
-    if (this.job == null && !isNetworkLink(device)) _lostPort = device;
+    final device = portDevice;
+    if (this.job == null && device != null) _lostPort = device;
     _disconnectBoard();
     final job = this.job;
     if (job == null) {
@@ -548,10 +550,8 @@ class BoardController extends ChangeNotifier {
   /// Gives the link what it can carry in one tick and sends the frames that were waiting.
   void _drainOutbox() {
     final baud = portBaud ?? defaultBaud;
-    final device = portDevice ?? '';
-    final serial = !isNetworkLink(device);
     // 10 bits per byte, 80 % of the line; never less than one long frame
-    _sendBudget = serial ? math.max(300, baud * tickMs ~/ 12500) : 1 << 20;
+    _sendBudget = math.max(300, baud * tickMs ~/ 12500);
     while (_conn != null && _outbox.isNotEmpty && _sendBudget >= _outbox.first.length) {
       _write(_outbox.removeAt(0));
     }

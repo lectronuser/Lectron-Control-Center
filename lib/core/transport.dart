@@ -1,30 +1,22 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 
 /// What is behind a port, guessed from its USB IDs; flight controllers are listed first.
-enum PortKind { ardupilot, px4, radio, serial, network }
+enum PortKind { ardupilot, px4, radio, serial }
 
 class PortInfo {
   const PortInfo(this.id, this.label, {this.usb = false, this.kind = PortKind.serial});
 
-  /// USB serial device name or `udp:<port>` for a UDP listener.
+  /// Serial device name: a USB adapter or the board's own USB port, or a UART of this computer.
   final String id;
   final String label;
   final bool usb;
   final PortKind kind;
 
-  bool get network => isNetworkLink(id);
   bool get flightController => kind == PortKind.ardupilot || kind == PortKind.px4;
 }
-
-/// True for a `udp:<port>` link id, false for a serial device.
-bool isNetworkLink(String id) => id.startsWith('udp:');
-
-/// Label of a network link id such as `udp:14550`.
-String networkLabel(String id) => id.startsWith('udp:') ? 'UDP listen on ${id.substring(4)}' : id;
 
 /// Classifies a USB serial port by vendor / product ID and its description.
 PortKind classifyUsb(int? vid, int? pid, String description) {
@@ -53,9 +45,6 @@ abstract class TransportFactory {
 }
 
 class DeviceTransportFactory implements TransportFactory {
-  static const int udpPort = 14550;
-  static const String udpId = 'udp:$udpPort';
-
   // a port being released after a disconnect; reopening it has to wait for that
   Future<void> _closing = Future.value();
 
@@ -66,41 +55,43 @@ class DeviceTransportFactory implements TransportFactory {
     try {
       names = SerialPort.availablePorts;
     } catch (_) {
-      names = const []; // no libserialport on this machine: UDP still works
+      names = const []; // no libserialport on this machine
     }
     for (final name in names) {
       // a port can vanish between the listing and this lookup (board rebooting)
       SerialPort? port;
       try {
         port = SerialPort(name);
-        // only USB devices are offered; the other link is UDP
-        if (port.transport != SerialPortTransport.usb) continue;
+        // USB devices and the UARTs of this computer, e.g. the one wired to the board on a CM5
+        final usb = port.transport == SerialPortTransport.usb;
         final description = port.description ?? '';
         int? vid, pid;
-        try {
-          vid = port.vendorId;
-          pid = port.productId;
-        } catch (_) {
-          // some drivers do not report the USB IDs
+        if (usb) {
+          try {
+            vid = port.vendorId;
+            pid = port.productId;
+          } catch (_) {
+            // some drivers do not report the USB IDs
+          }
         }
-        final kind = classifyUsb(vid, pid, description);
-        ports.add(PortInfo(name, description.isEmpty ? name : '$name  -  $description', usb: true, kind: kind));
+        final kind = usb ? classifyUsb(vid, pid, description) : PortKind.serial;
+        ports.add(PortInfo(name, description.isEmpty ? name : '$name  -  $description', usb: usb, kind: kind));
       } catch (_) {
-        // the port vanished or cannot be queried
+        ports.add(PortInfo(name, name));
       } finally {
         port?.dispose();
       }
     }
-    ports.sort((a, b) => a.kind != b.kind ? a.kind.index.compareTo(b.kind.index) : a.id.compareTo(b.id));
-    ports.add(const PortInfo(udpId, 'UDP  -  listen on port $udpPort (Ethernet / WiFi)', kind: PortKind.network));
+    ports.sort(
+      (a, b) => a.kind != b.kind
+          ? a.kind.index.compareTo(b.kind.index)
+          : (a.usb != b.usb ? (a.usb ? -1 : 1) : a.id.compareTo(b.id)),
+    );
     return ports;
   }
 
   @override
   Future<Transport> open(String id, int baud) async {
-    if (id.startsWith('udp:')) {
-      return UdpTransport.bind(int.parse(id.substring(4)));
-    }
     await _closing;
     final transport = SerialTransport.open(id, baud);
     unawaited(transport.closed.then((_) => _closing = transport.released));
@@ -168,43 +159,5 @@ class SerialTransport implements Transport {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     _port.dispose();
     _released.complete();
-  }
-}
-
-/// Listens for the board's MAVLink datagrams and answers to wherever they came from.
-class UdpTransport implements Transport {
-  UdpTransport._(this._socket) {
-    _socket.listen((event) {
-      if (event != RawSocketEvent.read) return;
-      Datagram? datagram;
-      while ((datagram = _socket.receive()) != null) {
-        _remote = datagram!.address;
-        _remotePort = datagram.port;
-        _controller.add(datagram.data);
-      }
-    }, onError: _controller.addError);
-  }
-
-  final RawDatagramSocket _socket;
-  final StreamController<Uint8List> _controller = StreamController();
-  InternetAddress? _remote;
-  int _remotePort = 0;
-
-  static Future<UdpTransport> bind(int port) async =>
-      UdpTransport._(await RawDatagramSocket.bind(InternetAddress.anyIPv4, port));
-
-  @override
-  Stream<Uint8List> get bytes => _controller.stream;
-
-  @override
-  void write(Uint8List data) {
-    final remote = _remote;
-    if (remote != null) _socket.send(data, remote, _remotePort);
-  }
-
-  @override
-  Future<void> close() async {
-    _socket.close();
-    await _controller.close();
   }
 }

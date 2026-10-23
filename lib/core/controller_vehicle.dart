@@ -424,17 +424,6 @@ extension VehicleState on BoardController {
     storage.put('recent', [for (final r in recentLinks) '${r.id}|${r.baud}'].join('\n'));
   }
 
-  /// Connects to a network link or a recent port in one step.
-  Future<void> connectTo(String id, {int? baud}) async {
-    if (connected || job != null) return;
-    if (baud != null) selectedBaud = baud;
-    if (!ports.any((p) => p.id == id)) {
-      ports = [...ports, PortInfo(id, networkLabel(id), kind: PortKind.network)];
-    }
-    selectPort(id);
-    await toggleConnection();
-  }
-
   void setAutoConnect(bool on) {
     autoConnect = on;
     storage.put('autoConnect', on);

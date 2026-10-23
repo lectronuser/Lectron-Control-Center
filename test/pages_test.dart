@@ -81,7 +81,7 @@ void main() {
         await shot(tester, '${page.name}_$tag');
       }
       // the sidebar lists the page groups
-      expect(find.text('VEHICLE'), findsOneWidget);
+      expect(find.text('FLIGHT CONTROLLER'), findsOneWidget);
       expect(find.text('Messages'), findsWidgets);
     });
   }
