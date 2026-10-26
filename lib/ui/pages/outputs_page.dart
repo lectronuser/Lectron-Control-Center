@@ -2,11 +2,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../core/board_controller.dart';
 import '../banners.dart';
 import '../param_form.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import '../../board/board_data.dart';
 
 /// PX4 airframes offered in the picker (from PX4's ROMFS airframe files).
 const Map<int, String> px4Airframes = {
@@ -51,7 +54,7 @@ class FrameCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: () => c.showPage(AppPage.frame),
                 icon: const Icon(Icons.swap_horiz, size: 16),
-                label: Text('Change frame…'),
+                label: Text(tr('Change frame…')),
               ),
             ],
           ),
@@ -68,7 +71,7 @@ class FrameCard extends StatelessWidget {
           else
             Muted('No motor diagram for this frame'),
           if (layout != null)
-            Center(child: Muted('${layout.name}  ·  green = clockwise, blue = counter-clockwise', size: 12)),
+            Center(child: Muted('${layout.name}  ·  ${tr('green = clockwise, blue = counter-clockwise')}', size: 12)),
         ],
       ),
     );
@@ -87,6 +90,8 @@ class OutputsPage extends StatefulWidget {
 class _OutputsPageState extends State<OutputsPage> {
   bool _propsOff = false;
   int _throttle = 7;
+  int _output = 1;
+  double _pwm = 1000;
 
   BoardController get c => widget.c;
 
@@ -113,7 +118,7 @@ class _OutputsPageState extends State<OutputsPage> {
           CheckRow('Propellers are removed', _propsOff, (v) => setState(() => _propsOff = v)),
           Row(
             children: [
-              Muted('Throttle $_throttle %'),
+              Muted('${tr('Throttle')} $_throttle %'),
               Expanded(
                 child: Slider(
                   value: _throttle.toDouble(),
@@ -132,7 +137,7 @@ class _OutputsPageState extends State<OutputsPage> {
               for (var i = 0; i < (layout?.positions.length ?? 4); i++)
                 OutlinedButton(
                   onPressed: _propsOff ? () => c.spinMotor(i, throttle: _throttle, seconds: 2) : null,
-                  child: Text('Motor ${String.fromCharCode(65 + i)}'),
+                  child: Text('${tr('Motor')} ${String.fromCharCode(65 + i)}'),
                 ),
               DangerButton(label: 'Stop all', onPressed: c.motorStop),
             ],
@@ -143,13 +148,61 @@ class _OutputsPageState extends State<OutputsPage> {
         ],
       ),
     );
-    return PageFrame(
-      title: 'Motors & Outputs',
-      subtitle: 'Frame, motor order, outputs and ESC protocol',
+    final servo = c.servo ?? const <int>[];
+    final outputCount = c.isArdupilot ? 16 : servo.length.clamp(8, 16);
+    final function = c.paramInt('SERVO${_output}_FUNCTION');
+    final outputCard = AppCard(
+      title: 'Output test',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IssueBanners(c, only: const {AppPage.outputs}),
+          Muted('Send a PWM signal straight to any output, e.g. an extra motor or a servo you added.', size: 12.5),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              SizedBox(
+                width: 110,
+                child: EnumDropdown(
+                  options: {for (var n = 1; n <= outputCount; n++) n: 'OUT$n'},
+                  value: _output,
+                  onChanged: (n) => setState(() => _output = n),
+                ),
+              ),
+              Expanded(
+                child: Slider(
+                  value: _pwm,
+                  min: 800,
+                  max: 2200,
+                  divisions: 140,
+                  label: '${_pwm.round()} µs',
+                  onChanged: (v) => setState(() => _pwm = v),
+                ),
+              ),
+              SizedBox(width: 70, child: Text('${_pwm.round()} µs', style: monoStyle.copyWith(fontSize: 12.5))),
+              FilledButton(
+                onPressed: _propsOff && c.connected ? () => c.setOutputPwm(_output, _pwm.round()) : null,
+                child: Text(tr('Send')),
+              ),
+            ],
+          ),
+          PwmBar('OUT$_output  ${tr('now')}', _output <= servo.length ? servo[_output - 1] : 0),
+          if (c.isArdupilot)
+            Muted(
+              '${tr('Function')}: ${servoFunctions[function] ?? '$function'}. '
+              '${tr('ArduPilot drives the output only when its function is Disabled (0); motors are tested with the buttons above.')}',
+              size: 12,
+            ),
+          StatusLine(c.status('output')),
+          if (!_propsOff) Muted('Tick "Propellers are removed" in Motor test first.', size: 12),
+        ],
+      ),
+    );
+    return PageFrame(
+      title: 'Motors & Outputs',
+      subtitle: 'Frame, motor order, motor and output test, ESC protocol',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           ChangedSinceBoot(c, AppPage.outputs),
           LayoutBuilder(
             builder: (context, box) => box.maxWidth < 1000
@@ -165,6 +218,8 @@ class _OutputsPageState extends State<OutputsPage> {
                     ],
                   ),
           ),
+          const SizedBox(height: 16),
+          outputCard,
           const SizedBox(height: 16),
           AppCard(title: 'Outputs', child: c.isPx4 ? _Px4Outputs(c) : _ApOutputs(c)),
           const SizedBox(height: 16),
@@ -225,7 +280,7 @@ class _Identify extends StatelessWidget {
         const SizedBox(height: 10),
         if (s.phase == IdentPhase.asking)
           Text(
-            'Motor ${String.fromCharCode(65 + s.index)}: ${s.message}',
+            '${tr('Motor')} ${String.fromCharCode(65 + s.index)}: ${tr(s.message)}',
             style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600),
           ),
         if (s.phase == IdentPhase.done) ...[
@@ -238,14 +293,14 @@ class _Identify extends StatelessWidget {
           ),
           for (final (asked, spun) in c.identMismatches())
             Muted(
-              'Motor ${String.fromCharCode(65 + asked)} → ${spun < 0 ? 'did not spin' : 'spun at position ${String.fromCharCode(65 + spun)}'}',
+              '${tr('Motor')} ${String.fromCharCode(65 + asked)} → ${spun < 0 ? tr('did not spin') : '${tr('spun at position')} ${String.fromCharCode(65 + spun)}'}',
               size: 12,
             ),
           if (fix.isNotEmpty) ...[
             const SizedBox(height: 6),
             Muted(fix.entries.map((e) => 'SERVO${e.key}_FUNCTION = ${e.value}').join(', '), size: 12),
             const SizedBox(height: 6),
-            OutlinedButton(onPressed: c.applyIdentFix, child: Text('Stage the fix')),
+            OutlinedButton(onPressed: c.applyIdentFix, child: Text(tr('Stage the fix'))),
           ],
         ],
         const SizedBox(height: 10),
@@ -257,11 +312,11 @@ class _Identify extends StatelessWidget {
               FilledButton.icon(
                 onPressed: propsOff && layout != null && c.hb?.armed != true ? c.startMotorIdent : null,
                 icon: const Icon(Icons.play_arrow, size: 16),
-                label: Text('Start'),
+                label: Text(tr('Start')),
               )
             else ...[
-              OutlinedButton(onPressed: c.identRepeat, child: Text('Spin again')),
-              OutlinedButton(onPressed: () => c.identAnswer(-1), child: Text('Nothing spun')),
+              OutlinedButton(onPressed: c.identRepeat, child: Text(tr('Spin again'))),
+              OutlinedButton(onPressed: () => c.identAnswer(-1), child: Text(tr('Nothing spun'))),
               DangerButton(label: 'Stop', onPressed: c.stopMotorIdent),
             ],
           ],

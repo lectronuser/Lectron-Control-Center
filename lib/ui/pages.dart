@@ -12,7 +12,7 @@ class PageInfo {
   final String keywords;
 }
 
-const List<String> pageGroups = ['Mission Computer', 'Flight Controller', 'Report & Test', 'App'];
+const List<String> pageGroups = ['Mission Computer', 'Flight Controller', 'App'];
 
 const List<PageInfo> pageInfos = [
   PageInfo(AppPage.missionComputer, Icons.memory, 'Mission Computer', 'Mission Computer', 'cm5 raspberry companion'),
@@ -21,37 +21,36 @@ const List<PageInfo> pageInfos = [
     Icons.dashboard_outlined,
     'Overview',
     'Flight Controller',
-    'board status arm mode reboot attitude hardware onboard',
+    'board status attitude hardware sensors live data imu compass baro gps',
   ),
   PageInfo(AppPage.frame, Icons.flight, 'Frame', 'Flight Controller', 'airframe quad hexa octa frame class type'),
-  PageInfo(AppPage.live, Icons.monitor_heart_outlined, 'Live Data', 'Flight Controller', 'sensors imu'),
   PageInfo(
     AppPage.calibration,
     Icons.explore_outlined,
     'Calibration',
     'Flight Controller',
-    'setup wizard steps accel compass level gyro baro esc',
-  ),
-  PageInfo(
-    AppPage.receiver,
-    Icons.settings_remote_outlined,
-    'Receiver',
-    'Flight Controller',
-    'radio rc flight modes switches',
+    'accel compass level gyro baro esc radio',
   ),
   PageInfo(
     AppPage.outputs,
     Icons.toys_outlined,
     'Motors & Outputs',
     'Flight Controller',
-    'frame motor order servo esc',
+    'frame motor order servo esc output test pwm',
+  ),
+  PageInfo(
+    AppPage.receiver,
+    Icons.settings_remote_outlined,
+    'Receiver',
+    'Flight Controller',
+    'rc channels radio receiver calibration sticks',
   ),
   PageInfo(
     AppPage.settings,
     Icons.developer_board,
     'Board Settings',
     'Flight Controller',
-    'ethernet network failsafe safety battery fence arming rtl serial ports uart telemetry baud protocol presets gps elrs crsf osd on screen display',
+    'ethernet network serial ports uart telemetry baud protocol osd on screen display',
   ),
   PageInfo(
     AppPage.params,
@@ -60,6 +59,7 @@ const List<PageInfo> pageInfos = [
     'Flight Controller',
     'param edit compare file peripherals gps rangefinder airspeed led buzzer camera gimbal',
   ),
+  PageInfo(AppPage.terminal, Icons.terminal, 'Terminal', 'Flight Controller', 'shell nsh console px4 command'),
   PageInfo(AppPage.logs, Icons.receipt_long_outlined, 'Logs', 'Flight Controller', 'dataflash download vibration'),
   PageInfo(AppPage.messages, Icons.forum_outlined, 'Messages', 'Flight Controller', 'statustext log errors'),
   PageInfo(
@@ -69,9 +69,8 @@ const List<PageInfo> pageInfos = [
     'Flight Controller',
     'flash bootloader upload update',
   ),
-  PageInfo(AppPage.test, Icons.fact_check_outlined, 'Port Test', 'Report & Test', 'report pdf'),
-  PageInfo(AppPage.motors, Icons.rotate_right, 'Motor Test', 'Report & Test', 'spin'),
-  PageInfo(AppPage.app, Icons.settings_outlined, 'Settings', 'App', 'auto-connect theme'),
+  PageInfo(AppPage.test, Icons.fact_check_outlined, 'Report & Test', 'App', 'port test report pdf'),
+  PageInfo(AppPage.app, Icons.settings_outlined, 'Settings', 'App', 'language auto-connect theme'),
 ];
 
 PageInfo pageInfo(AppPage page) => pageInfos.firstWhere((p) => p.page == page);

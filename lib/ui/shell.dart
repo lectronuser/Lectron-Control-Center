@@ -3,23 +3,24 @@ import 'package:flutter/services.dart';
 
 import '../board/board_data.dart';
 import '../core/board_controller.dart';
+import '../core/models.dart';
 import '../core/transport.dart';
-import 'dock.dart';
+import 'banners.dart';
+import 'i18n.dart';
 import 'pages.dart';
 import 'pages/app_settings_page.dart';
 import 'pages/board_page.dart';
 import 'pages/calibration_page.dart';
 import 'pages/firmware_page.dart';
 import 'pages/frame_page.dart';
-import 'pages/live_page.dart';
 import 'pages/logs_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/mission_computer_page.dart';
-import 'pages/motors_page.dart';
 import 'pages/outputs_page.dart';
 import 'pages/params_page.dart';
 import 'pages/receiver_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/terminal_page.dart';
 import 'pages/test_page.dart';
 import 'search.dart';
 import 'theme.dart';
@@ -61,7 +62,6 @@ class _ShellState extends State<Shell> {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyK, control: true): _openSearch,
         const SingleActivator(LogicalKeyboardKey.keyF, control: true): _openSearch,
-        const SingleActivator(LogicalKeyboardKey.keyJ, control: true): c.toggleDock,
       },
       child: Focus(
         focusNode: _focus,
@@ -69,6 +69,7 @@ class _ShellState extends State<Shell> {
         child: ListenableBuilder(
           listenable: c,
           builder: (context, _) {
+            appLanguage = c.language;
             return Scaffold(
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -85,7 +86,6 @@ class _ShellState extends State<Shell> {
                             children: [
                               if (c.paramEdits.isNotEmpty && c.page != AppPage.params) _StagedBar(c),
                               Expanded(child: _page(c)),
-                              if (c.dockOpen) Dock(c),
                             ],
                           ),
                         ),
@@ -108,16 +108,15 @@ Widget _page(BoardController c) => switch (c.page) {
   AppPage.missionComputer => MissionComputerPage(c),
   AppPage.frame => FramePage(c),
   AppPage.calibration => CalibrationPage(c),
-  AppPage.receiver => ReceiverPage(c),
   AppPage.outputs => OutputsPage(c),
+  AppPage.receiver => ReceiverPage(c),
   AppPage.logs => LogsPage(c),
+  AppPage.terminal => TerminalPage(c),
   AppPage.firmware => FirmwarePage(c),
   AppPage.params => ParamsPage(c),
   AppPage.board => BoardPage(c),
   AppPage.test => TestPage(c),
-  AppPage.motors => MotorsPage(c),
   AppPage.settings => SettingsPage(c),
-  AppPage.live => LivePage(c),
   AppPage.app => AppSettingsPage(c),
 };
 
@@ -170,7 +169,7 @@ class _TopBar extends StatelessWidget {
           SizedBox(
             width: 104,
             child: Tooltip(
-              message: 'Baud rate',
+              message: tr('Baud rate'),
               child: _Picker<int>(
                 value: c.selectedBaud,
                 enabled: !busy,
@@ -186,14 +185,43 @@ class _TopBar extends StatelessWidget {
               style: busy ? FilledButton.styleFrom(backgroundColor: AppColors.err) : null,
               onPressed: busy ? () => _disconnect(context, c) : (c.selectedPort != null ? c.toggleConnection : null),
               icon: Icon(busy ? Icons.link_off : Icons.usb, size: 16),
-              label: Text(c.connected ? 'Disconnect' : (c.job != null ? 'Cancel' : 'Connect')),
+              label: Text(tr(c.connected ? 'Disconnect' : (c.job != null ? 'Cancel' : 'Connect'))),
             ),
           ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 150,
-            child: Align(alignment: Alignment.centerRight, child: StatusChip(link.text, link.tone, dot: true)),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: tr('Reboot the board; it reconnects by itself'),
+            child: OutlinedButton.icon(
+              onPressed: c.target != null && c.job == null ? c.rebootBoard : null,
+              icon: const Icon(Icons.restart_alt, size: 16),
+              label: Text(tr('Reboot')),
+            ),
           ),
+          const SizedBox(width: 8),
+          IssuesButton(c),
+          // armed state and flight mode, visible on every page
+          if (c.target != null && c.hb != null) ...[
+            const SizedBox(width: 10),
+            Tooltip(
+              message: tr('Armed state and flight mode of the vehicle'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StatusChip(c.hb!.armed ? 'ARMED' : 'Disarmed', c.hb!.armed ? Tone.err : Tone.ok),
+                  const SizedBox(width: 6),
+                  StatusChip(c.hb!.mode, Tone.accent),
+                ],
+              ),
+            ),
+          ],
+          // the link state only while there is no vehicle to show (connecting, waiting, link lost)
+          if (c.target == null || c.hb == null || link.tone != Tone.ok) ...[
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 130,
+              child: Align(alignment: Alignment.centerRight, child: StatusChip(link.text, link.tone, dot: true)),
+            ),
+          ],
         ],
       ),
     );
@@ -203,7 +231,7 @@ class _TopBar extends StatelessWidget {
 String _portLabel(PortInfo p) => switch (p.kind) {
   PortKind.ardupilot => '${p.label}   [ArduPilot]',
   PortKind.px4 => '${p.label}   [PX4 / Pixhawk]',
-  PortKind.radio => '${p.label}   [Radio]',
+  PortKind.radio => '${p.label}   [${tr('Radio')}]',
   _ => p.label,
 };
 
@@ -265,57 +293,6 @@ class _Picker<T> extends StatelessWidget {
 }
 
 // ---- arming checks --------------------------------------------------------------------------------
-
-Future<void> showPrearmDialog(BuildContext context, BoardController c) => showDialog<void>(
-  context: context,
-  builder: (context) => ListenableBuilder(
-    listenable: c,
-    builder: (context, _) {
-      final reasons = c.prearmReasons;
-      return AlertDialog(
-        title: Text('Arming checks', style: Theme.of(context).textTheme.titleMedium),
-        content: SizedBox(
-          width: 520,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (reasons.isEmpty)
-                Muted(
-                  c.prearmHealthy == true
-                      ? 'No failing checks reported. The vehicle is ready to arm.'
-                      : 'No failing checks reported yet. Run the checks to ask the vehicle.',
-                ),
-              for (final r in reasons)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.error_outline, size: 16, color: AppColors.err),
-                      const SizedBox(width: 8),
-                      Expanded(child: SelectableText(r)),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 10),
-              Muted('Reasons are collected from PreArm messages of the last minute.', size: 12),
-            ],
-          ),
-        ),
-        actions: [
-          if (c.isArdupilot)
-            OutlinedButton.icon(
-              onPressed: c.runPrearmChecks,
-              icon: const Icon(Icons.refresh, size: 16),
-              label: Text('Run checks'),
-            ),
-          FilledButton(onPressed: () => Navigator.pop(context), child: Text('Close')),
-        ],
-      );
-    },
-  ),
-);
 
 // ---- sidebar --------------------------------------------------------------------------------------
 
@@ -412,7 +389,7 @@ class _SidebarState extends State<_Sidebar> {
                           children: [
                             Expanded(
                               child: Text(
-                                group.toUpperCase(),
+                                tr(group).toUpperCase(),
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: AppColors.off,
@@ -472,7 +449,7 @@ class _NavButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? AppColors.accent : AppColors.muted;
-    final label = info.label;
+    final label = tr(info.label);
     final badgeWidget = badge == null
         ? null
         : Container(
@@ -565,12 +542,12 @@ class _StagedBar extends StatelessWidget {
               style: const TextStyle(color: AppColors.accent, fontSize: 13),
             ),
           ),
-          OutlinedButton(onPressed: c.revertParamEdits, child: Text('Discard')),
+          OutlinedButton(onPressed: c.revertParamEdits, child: Text(tr('Discard'))),
           const SizedBox(width: 8),
           FilledButton.icon(
             onPressed: c.target == null ? null : () => c.notify((c.writeStaged().text)),
             icon: const Icon(Icons.upload, size: 16),
-            label: Text('Write'),
+            label: Text(tr('Write')),
           ),
         ],
       ),
@@ -603,7 +580,7 @@ class _StatusBar extends StatelessWidget {
           ],
           Expanded(
             child: Text(
-              c.notice,
+              tr(c.notice),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: job != null ? AppColors.warn : AppColors.muted, fontSize: 12),
@@ -613,25 +590,13 @@ class _StatusBar extends StatelessWidget {
             Muted(
               c.loadingAllParams
                   ? 'Parameters ${c.paramsReceived}/${c.paramCount}'
-                  : (c.fullLoaded ? '${c.params.length} parameters' : c.paramSummary),
+                  : (c.fullLoaded ? '${c.params.length} ${tr('parameters')}' : c.paramSummary),
               size: 12,
             ),
           if (c.connected && device.isNotEmpty) ...[
             const SizedBox(width: 16),
             Muted('$device @ ${c.portBaud}', size: 12),
           ],
-          const SizedBox(width: 12),
-          Tooltip(
-            message: 'Inspection dock (Ctrl+J)',
-            child: InkWell(
-              onTap: c.toggleDock,
-              child: Icon(
-                c.dockOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
-                size: 18,
-                color: AppColors.muted,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -650,7 +615,7 @@ class LinkButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final action = c.connected ? onPressed : null;
-    final text = Text(label);
+    final text = Text(tr(label));
     if (primary) {
       return icon == null
           ? FilledButton(onPressed: action, child: text)

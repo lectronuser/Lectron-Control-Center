@@ -52,18 +52,54 @@ void main() {
     expect((row.status, row.tone), ('Missing', Tone.err));
   });
 
-  boardTest('devices added to the board are listed with their type, the onboard ones are not', (tester, h) async {
-    h.board.params['COMPASS_DEV_ID2'] = devId(bus: 1, busNum: 1, address: 0x0E, type: 0x0A);
-    h.board.params['COMPASS_EXTERN2'] = 1;
+  boardTest('a board that goes silent is disconnected and reconnected by itself', (tester, h) async {
+    final c = h.controller;
+    await h.connect(tester);
+    await h.run(tester, 2);
+    expect(c.target, isNotNull);
+    // the USB port stays, but nothing arrives any more: the port is closed and opened again
+    final opens = h.board.boots;
+    await h.run(tester, linkDeadS + 1, telemetry: false);
+    expect(h.board.boots, greaterThan(opens));
+    // it talks again: auto-connect opens the same port
+    await h.run(tester, 6);
+    expect(c.target, isNotNull);
+    expect(c.portDevice, '/dev/ttyACM0');
+  });
+
+  boardTest('a cancelled accelerometer calibration stops on the vehicle and stays stopped', (tester, h) async {
+    final c = h.controller;
     await h.connect(tester);
     await h.run(tester, 1);
-    final rows = h.controller.addedDeviceRows();
-    final compass = rows.firstWhere((r) => r.item.startsWith('Compass 2'));
-    expect(compass.item, contains('IST8310'));
-    expect(compass.details, contains('external'));
-    expect(rows.any((r) => r.item.startsWith('Compass 1')), isFalse); // the onboard BMM350
-    expect(rows.any((r) => r.item.startsWith('IMU')), isFalse);
-    expect(rows.firstWhere((r) => r.item.startsWith('GPS 1')).item, contains('Auto'));
+    c.startCalibration(CalKind.accel);
+    // the vehicle asks for the first pose
+    h.board.send(MavId.commandLong, {'command': Mav.cmdAccelcalVehiclePos, 'param1': 1.0});
+    await h.run(tester, 0.5);
+    expect(c.cal.busy, isTrue);
+    c.cancelCalibration();
+    await h.run(tester, 0.5);
+    final sent = [
+      for (final m in h.board.received)
+        if (m.type == 'COMMAND_LONG' && m.i('command') == Mav.cmdAccelcalVehiclePos) m.d('param1'),
+    ];
+    expect(sent, contains(Mav.accelcalFailed.toDouble()));
+    // a pose request that was already on its way does not bring the calibration back
+    h.board.send(MavId.commandLong, {'command': Mav.cmdAccelcalVehiclePos, 'param1': 2.0});
+    await h.run(tester, 0.5);
+    expect(c.cal.busy, isFalse);
+    expect(c.cal.message, 'Calibration cancelled');
+  });
+
+  boardTest('a GPS that is only configured is not shown as detected', (tester, h) async {
+    h.board.gpsFixType = 0; // GPS1_TYPE = Auto, but nothing plugged in
+    await h.connect(tester);
+    await h.run(tester, 2);
+    final gps = h.controller.liveRows().firstWhere((r) => r.label == 'GPS 1');
+    expect(gps.chip, '-');
+    expect(gps.value, startsWith('Not connected'));
+    h.board.gpsFixType = 1; // a receiver answers, still without a fix
+    await h.run(tester, 1);
+    expect(h.controller.liveRows().firstWhere((r) => r.label == 'GPS 1').chip, isNot('-'));
   });
 
   boardTest('apply writes only the changed parameters, reboots and reconnects', (tester, h) async {

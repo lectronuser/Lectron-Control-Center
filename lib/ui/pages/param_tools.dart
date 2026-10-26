@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../param_form.dart';
@@ -50,7 +52,7 @@ class _InitialTuneCardState extends State<InitialTuneCard> {
               child: TextField(
                 controller: _prop,
                 onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(labelText: 'Propeller (inch)'),
+                decoration: InputDecoration(labelText: tr('Propeller (inch)')),
               ),
             ),
             const SizedBox(width: 12),
@@ -59,7 +61,7 @@ class _InitialTuneCardState extends State<InitialTuneCard> {
               child: TextField(
                 controller: _cells,
                 onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(labelText: 'Battery cells (S)'),
+                decoration: InputDecoration(labelText: tr('Battery cells (S)')),
               ),
             ),
           ],
@@ -219,10 +221,7 @@ class _ParamGroupsViewState extends State<ParamGroupsView> {
               SizedBox(
                 width: 260,
                 child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Filter groups',
-                    prefixIcon: Icon(Icons.search, size: 18),
-                  ),
+                  decoration: InputDecoration(hintText: tr('Filter groups'), prefixIcon: Icon(Icons.search, size: 18)),
                   onChanged: (v) => setState(() => _filter = v.trim()),
                 ),
               ),

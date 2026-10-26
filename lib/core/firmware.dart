@@ -92,13 +92,32 @@ class FlashException implements Exception {
 /// Talks to the PX4 / ArduPilot bootloader on a serial link (the same protocol as px_uploader.py).
 class BootloaderClient {
   BootloaderClient(this.link) {
-    _sub = link.bytes.listen(_rx.addAll, onError: (_) {}, onDone: () => _closed = true);
+    _sub = link.bytes.listen(
+      (data) {
+        _rx.addAll(data);
+        _wake();
+      },
+      onError: (_) {},
+      onDone: () {
+        _closed = true;
+        _wake();
+      },
+    );
   }
 
   final Transport link;
   final List<int> _rx = [];
   late final StreamSubscription<Uint8List> _sub;
   bool _closed = false;
+
+  /// Completed when bytes arrive or the port closes; a waiting read then checks again.
+  Completer<void>? _arrived;
+
+  void _wake() {
+    final waiter = _arrived;
+    _arrived = null;
+    if (waiter != null && !waiter.isCompleted) waiter.complete();
+  }
 
   Future<void> close() async {
     await _sub.cancel();
@@ -109,8 +128,10 @@ class BootloaderClient {
     final end = DateTime.now().add(timeout);
     while (_rx.length < n) {
       if (_closed) throw const FlashException('the port closed');
-      if (DateTime.now().isAfter(end)) throw const FlashException('no answer from the bootloader');
-      await Future<void>.delayed(const Duration(milliseconds: 2));
+      final left = end.difference(DateTime.now());
+      if (left <= Duration.zero) throw const FlashException('no answer from the bootloader');
+      final waiter = _arrived ??= Completer<void>();
+      await waiter.future.timeout(left, onTimeout: () {});
     }
     final out = _rx.sublist(0, n);
     _rx.removeRange(0, n);

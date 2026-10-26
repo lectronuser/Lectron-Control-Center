@@ -20,8 +20,8 @@ class VehicleIssue {
 /// Parameter prefixes per setup page, for the "changed since boot" dot in the sidebar.
 const Map<AppPage, List<String>> pageParamPrefixes = {
   AppPage.calibration: ['INS_', 'COMPASS_', 'AHRS_', 'CAL_', 'SENS_BOARD', 'EK3_', 'EKF2_'],
-  AppPage.receiver: ['RC', 'FLTMODE', 'RSSI_', 'COM_FLTMODE', 'COM_RC'],
   AppPage.outputs: ['SERVO', 'MOT_', 'FRAME_', 'PWM_', 'CA_', 'DSHOT', 'SYS_AUTOSTART'],
+  AppPage.receiver: ['RC', 'RSSI_', 'RCMAP_'],
   AppPage.settings: [
     ...['SERIAL', 'SER_', 'MAV_', 'NET_', 'OSD'],
     ...['FS_', 'BATT', 'FENCE_', 'ARMING_', 'COM_', 'NAV_DLL', 'NAV_RCL', 'GF_', 'BAT', 'RTL_'],

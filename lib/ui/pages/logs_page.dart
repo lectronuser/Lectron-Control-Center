@@ -6,6 +6,9 @@ import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+
+import '../i18n.dart';
+
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -128,7 +131,7 @@ class _LogsPageState extends State<LogsPage> {
   Future<void> _open(Uint8List bytes, String name, {bool compare = false}) async {
     setState(() {
       s.busy = true;
-      s.status = 'Reading $name…';
+      s.status = '${tr('Reading')} $name…';
     });
     try {
       final (log, analysis) = await loadLog(bytes, name);
@@ -156,7 +159,7 @@ class _LogsPageState extends State<LogsPage> {
         s.status = '$name: ${log.firmware}, ${mmss(log.duration)}';
       });
     } catch (e) {
-      setState(() => s.status = 'Could not read the log: $e');
+      setState(() => s.status = '${tr('Could not read the log:')} $e');
     } finally {
       if (mounted) setState(() => s.busy = false);
     }
@@ -184,7 +187,7 @@ class _LogsPageState extends State<LogsPage> {
       final pick = await showDialog<LogEntryInfo>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Logs on the vehicle'),
+          title: Text(tr('Logs on the vehicle')),
           content: SizedBox(
             width: 480,
             height: 380,
@@ -196,7 +199,7 @@ class _LogsPageState extends State<LogsPage> {
                         ListTile(
                           dense: true,
                           leading: const Icon(Icons.receipt_long, size: 18),
-                          title: Text('Log ${e.id}'),
+                          title: Text('${tr('Log')} ${e.id}'),
                           subtitle: Text(
                             '${(e.size / (1 << 20)).toStringAsFixed(1)} MB${e.time == null ? '' : '  ·  ${ymd(e.time!)} ${hms(e.time!)}'}',
                           ),
@@ -220,16 +223,16 @@ class _LogsPageState extends State<LogsPage> {
                     if (context.mounted) Navigator.pop(context);
                   }
                 },
-                child: Text('Erase all', style: const TextStyle(color: AppColors.err)),
+                child: Text(tr('Erase all'), style: const TextStyle(color: AppColors.err)),
               ),
-            OutlinedButton(onPressed: () => Navigator.pop(context), child: Text('Close')),
+            OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Close'))),
           ],
         ),
       );
       if (pick == null) return;
       setState(() {
         s.busy = true;
-        s.status = 'Downloading log ${pick.id}…';
+        s.status = '${tr('Downloading log')} ${pick.id}…';
       });
       final data = await dl.download(
         pick,
@@ -238,7 +241,7 @@ class _LogsPageState extends State<LogsPage> {
             setState(() {
               s.progress = total == 0 ? null : got / total;
               s.status =
-                  'Downloading log ${pick.id}: ${(got / 1024).round()} / ${(total / 1024).round()} KB'
+                  '${tr('Downloading log')} ${pick.id}: ${(got / 1024).round()} / ${(total / 1024).round()} KB'
                   '${rate > 0 ? '  (${(rate / 1024).round()} KB/s)' : ''}';
             });
           }
@@ -325,22 +328,22 @@ class _LogsPageState extends State<LogsPage> {
       OutlinedButton.icon(
         onPressed: s.busy || c.target == null ? null : _fromVehicle,
         icon: const Icon(Icons.download, size: 16),
-        label: Text('From vehicle…'),
+        label: Text(tr('From vehicle…')),
       ),
       OutlinedButton.icon(
         onPressed: s.busy ? null : _openFile,
         icon: const Icon(Icons.folder_open, size: 16),
-        label: Text('Open file…'),
+        label: Text(tr('Open file…')),
       ),
       if (log != null)
         OutlinedButton.icon(
           onPressed: s.busy ? null : () => _openFile(compare: true),
           icon: const Icon(Icons.compare_arrows, size: 16),
-          label: Text('Compare with…'),
+          label: Text(tr('Compare with…')),
         ),
       if (log != null)
         IconButton(
-          tooltip: 'Close the log',
+          tooltip: tr('Close the log'),
           onPressed: () => setState(() {
             s.a = s.aa = s.b = s.bb = null;
             s.status = '';
@@ -369,7 +372,7 @@ class _LogsPageState extends State<LogsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('No log open', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(tr('No log open'), style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   Muted(
                     'Download a log from the connected vehicle over MAVLink, or open a .bin (ArduPilot) or .ulg (PX4) file.',
@@ -384,7 +387,7 @@ class _LogsPageState extends State<LogsPage> {
                 showSelectedIcon: false,
                 segments: [
                   for (var i = 0; i < _tabs.length; i++)
-                    if (i != 7 || s.b != null) ButtonSegment(value: i, label: Text(_tabs[i])),
+                    if (i != 7 || s.b != null) ButtonSegment(value: i, label: Text(tr(_tabs[i]))),
                 ],
                 selected: {s.tab},
                 onSelectionChanged: (v) => setState(() => s.tab = v.first),
@@ -452,7 +455,7 @@ class _LogsPageState extends State<LogsPage> {
             _tile('Lowest voltage', opt(sum.minVolt, 'V', 2)),
           ],
         ),
-        if (sum.modes.isNotEmpty) ...[const SizedBox(height: 10), Muted('Modes: ${sum.modes.join(', ')}')],
+        if (sum.modes.isNotEmpty) ...[const SizedBox(height: 10), Muted('${tr('Modes')}: ${sum.modes.join(', ')}')],
         const SizedBox(height: 16),
         AppCard(
           title: 'Checks',
@@ -519,7 +522,7 @@ class _LogsPageState extends State<LogsPage> {
                         Expanded(child: Muted(sug.reason, size: 12)),
                         OutlinedButton(
                           onPressed: c.params.containsKey(sug.param) ? () => c.stageParam(sug.param, sug.value) : null,
-                          child: Text(c.isStaged(sug.param) ? 'Staged' : 'Stage'),
+                          child: Text(tr(c.isStaged(sug.param) ? 'Staged' : 'Stage')),
                         ),
                       ],
                     ),
@@ -571,7 +574,7 @@ class _LogsPageState extends State<LogsPage> {
         );
       }
     }
-    if (lines.isEmpty) return AppCard(child: Muted('$title: not in this log'));
+    if (lines.isEmpty) return AppCard(child: Muted('${tr(title)}: ${tr('not in this log')}'));
     return AppCard(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: LineChart(
@@ -685,7 +688,7 @@ class _LogsPageState extends State<LogsPage> {
               child: TextField(
                 onChanged: (t) => setState(() => _search = t),
                 decoration: InputDecoration(
-                  hintText: 'Free plot: search a field, e.g. BAT or vibration',
+                  hintText: tr('Free plot: search a field, e.g. BAT or vibration'),
                   prefixIcon: const Icon(Icons.search, size: 18),
                 ),
               ),
@@ -703,7 +706,7 @@ class _LogsPageState extends State<LogsPage> {
                 ],
               ),
             ),
-            TextButton(onPressed: () => _zoom(double.negativeInfinity, double.infinity), child: Text('Reset zoom')),
+            TextButton(onPressed: () => _zoom(double.negativeInfinity, double.infinity), child: Text(tr('Reset zoom'))),
           ],
         ),
         if (found.isNotEmpty)
@@ -969,7 +972,7 @@ class _LogsPageState extends State<LogsPage> {
                 width: 320,
                 child: TextField(
                   onChanged: (t) => setState(() => _search = t),
-                  decoration: InputDecoration(hintText: 'Search', prefixIcon: const Icon(Icons.search, size: 18)),
+                  decoration: InputDecoration(hintText: tr('Search'), prefixIcon: const Icon(Icons.search, size: 18)),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1062,7 +1065,7 @@ class _LogsPageState extends State<LogsPage> {
         ),
         const SizedBox(height: 12),
         AppCard(
-          title: 'Parameter differences (${changed.length})',
+          title: '${tr('Parameter differences')} (${changed.length})',
           child: SimpleTable(
             columns: [Col('Name', flex: 2), const Col('A', flex: 1), const Col('B', flex: 1)],
             rowHeight: 28,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import '../mavlink/mavlink.dart';
 import '../report/report_data.dart';
 import 'app_storage.dart';
 import 'firmware.dart';
+import 'mission_link.dart';
 import 'models.dart';
 import 'param_meta.dart';
 import 'transport.dart';
@@ -28,6 +30,7 @@ part 'frames.g.dart';
 const int tickMs = 250;
 const double staleS = 2.0;
 const double heartbeatTimeoutS = 3.0;
+const double linkDeadS = 6.0; // no byte at all for this long: the link is treated as broken and reopened
 const double paramRetryS = 2.0;
 const int paramMaxTries = 3;
 const double portScanS = 1.5;
@@ -51,19 +54,17 @@ enum AppPage {
   // flight controller
   board,
   frame,
-  live,
   calibration,
-  receiver,
   outputs,
-  params,
-  logs,
+  receiver,
   settings,
+  params,
+  terminal,
+  logs,
   messages,
   firmware,
-  // report and test
-  test,
-  motors,
   // app
+  test,
   app,
 }
 
@@ -90,11 +91,8 @@ class BoardController extends ChangeNotifier {
     _preferredPort = selectedPort = storage.getString('port');
     final baud = storage.getInt('baud');
     selectedBaud = baud != null && baudRates.contains(baud) ? baud : defaultBaud;
+    language = storage.getString('language') == 'tr' ? 'tr' : 'en';
     autoConnect = storage.getBool('autoConnect') ?? true;
-    dockOpen = storage.getBool('dock') ?? false;
-    for (final key in (storage.getString('pins') ?? '').split('\n')) {
-      if (key.trim().isNotEmpty) watchPins.add(WatchPin(key.trim()));
-    }
     for (final line in (storage.getString('recent') ?? '').split('\n')) {
       final parts = line.split('|');
       final baud = parts.length == 2 ? int.tryParse(parts[1]) : null;
@@ -105,6 +103,7 @@ class BoardController extends ChangeNotifier {
     }
     _applyTelem3Fitted();
     messageListeners.add(_setupMessage);
+    messageListeners.add(_shellMessage);
     _ticker = Timer.periodic(const Duration(milliseconds: tickMs), (_) => _tick());
     refreshPorts();
   }
@@ -150,9 +149,18 @@ class BoardController extends ChangeNotifier {
   // ---- app-wide state (logic in controller_vehicle.dart) ----------------------------------------
 
   bool autoConnect = true;
-  bool dockOpen = false;
   final List<RecentLink> recentLinks = [];
-  final List<WatchPin> watchPins = [];
+
+  /// SSH link to the mission computer, independent of the flight controller link.
+  late final MissionComputerLink mission = MissionComputerLink(storage);
+
+  /// PX4 MAVLink shell (NSH): polled while the Terminal page is open, output kept up to [shellMax] characters.
+  bool shellActive = false;
+  String shellText = '';
+  static const int shellMax = 200000;
+
+  /// Interface language: 'en' or 'tr'.
+  String language = 'en';
   final Set<String> _seenPorts = {};
 
   /// Port that dropped out while connected; auto-connect opens it again when it returns.
@@ -451,6 +459,7 @@ class BoardController extends ChangeNotifier {
       return false;
     }
     _conn = conn;
+    _lastRx = mono();
     portDevice = port;
     portBaud = baud;
     _resetState();
@@ -488,6 +497,11 @@ class BoardController extends ChangeNotifier {
   }
 
   void _connectionError(String text) {
+    // the board drops off USB on purpose when a flash or detection sends it to its bootloader
+    if (flash.running) {
+      _disconnectBoard();
+      return;
+    }
     final device = portDevice;
     if (this.job == null && device != null) _lostPort = device;
     _disconnectBoard();
@@ -505,7 +519,17 @@ class BoardController extends ChangeNotifier {
   }
 
   void _onBytes(Uint8List chunk) {
-    for (final msg in _parser.add(chunk)) {
+    _lastRx = mono();
+    final List<MavMessage> messages;
+    try {
+      messages = _parser.add(chunk);
+    } catch (e, stack) {
+      // a parser fault must not stop the link: start over with the next frame
+      logException(e, stack);
+      _parser.reset();
+      return;
+    }
+    for (final msg in messages) {
       try {
         _handleMessage(msg);
         final target = this.target;
@@ -515,6 +539,9 @@ class BoardController extends ChangeNotifier {
       }
     }
   }
+
+  /// Time of the last byte from the board, for the dead-link check.
+  double _lastRx = 0;
 
   void _send(int msgId, Map<String, Object> fields) {
     if (_conn == null) return;
@@ -593,6 +620,10 @@ class BoardController extends ChangeNotifier {
       _checkActiveTest();
       _jobTick(now);
       if (connected) _drainOutbox();
+      // a board that hangs while its USB port stays: nothing arrives any more, so reopen the port
+      if (connected && target != null && job == null && !flash.running && now - _lastRx > linkDeadS) {
+        _connectionError('no data from the board for ${linkDeadS.toStringAsFixed(0)} s');
+      }
       if (connected) {
         if (_tickCount % (1000 ~/ tickMs) == 0) _sendHeartbeat();
         final retryAt = _paramRetryAt;
@@ -605,9 +636,9 @@ class BoardController extends ChangeNotifier {
         }
         _fullLoadTick(now);
         _loadForms();
-        _samplePinnedParams();
         _radioTick();
         _switchTick();
+        if (shellActive) _shellPoll();
         _changed();
       } else {
         if (now >= _nextPortScan) {
@@ -1096,6 +1127,8 @@ class BoardController extends ChangeNotifier {
   Future<void> shutdown() async {
     if (_disposed) return;
     _disposed = true;
+    mission.stopScan();
+    await mission.disconnect();
     job = null;
     _stopEthProbe();
     _ticker?.cancel();

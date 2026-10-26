@@ -3,7 +3,7 @@
 Testing, firmware flashing and control of Lectron boards: boards that are only a flight controller
 (**ArduPilot** / **PX4**) and boards that also carry a mission computer such as a Raspberry Pi CM5. Board test with
 PDF report, flight controller setup, calibration, logs and diagnostics. Flutter desktop app, developed and tested
-on Linux. English interface.
+on Linux. English and Turkish.
 
 > Pre-release. Remove the propellers for anything that can spin a motor, and check every setting before flying.
 
@@ -12,11 +12,10 @@ on Linux. English interface.
 | Group | Pages |
 |---|---|
 | **Mission Computer** | Mission computer on the board, e.g. a Raspberry Pi CM5 (in progress) |
-| **Flight Controller** | **Overview** (board identity and link, health tiles, arm / flight mode / reboot, 3D attitude drawn with the selected frame, power, hardware check with the devices added later and their type) · **Frame** (every ArduPilot frame or PX4 airframe as a picture; picking one writes it and reboots the board) · **Calibration** (step by step: six-position accelerometer with 3D poses, compass with quality grades and a rotation guide sphere, level / gyro / baro / airspeed, radio, ESC calibration, CompassMot) · **Receiver** (protocol, flight modes with the active slot, switches learned by flipping them, all 16 RC channels) · **Motors & Outputs** (frame / airframe, motor diagram, motor identification with a suggested fix, outputs, ESC protocol) · **Board Settings** (Ethernet and serial ports, safety & failsafes with the recommended set, port presets for GPS / ELRS / telemetry / HD OSD / rangefinder / DroneCAN, OSD layout) · **Parameters** (all parameters with documentation, enum / bit-mask editors, ranges, reboot-required, changed since boot, `.param` files; by group as forms with the initial tune and sensor selection & EKF; peripherals: GPS, battery monitor, rangefinder, airspeed, flow, LEDs, buzzer, gimbal, camera) · **Logs** (download over MAVLink or open `.bin` / `.ulg`; summary, automatic checks, suggested changes, events, vibration, motors, hover vs battery, charts with zoom / CSV / PNG, map & replay with 3D attitude and sticks, compare two logs) · **Messages** · **Firmware** (local `.apj` / `.px4` / `.bin` file, flashed through the bootloader with board ID and CRC check) |
-| **Report & Test** | **Port Test** with PDF report · **Motor Test** · **Live Data** |
-| **App** | Auto-connect, banners, folders |
+| **Flight Controller** | **Overview** (health tiles, board identity and link, attitude with roll / pitch / yaw, horizon and compass, the detected sensors and their live values) · **Frame** (every frame as a picture; picking one writes it and reboots) · **Calibration** (accelerometer, compass with a rotation guide, level, gyro, baro, airspeed on planes) · **Motors & Outputs** (frame and motor diagram, motor identification, motor test, output test that drives any output with a PWM value, ESC protocol) · **Receiver** (all 16 RC channels, guided radio calibration) · **Board Settings** (Ethernet, serial ports, OSD layout) · **Parameters** (all parameters, by group, peripherals) · **Logs** · **Messages** · **Firmware** (local `.apj` / `.px4` / `.bin`) |
+| **App** | **Report & Test** (port by port board test with PDF report) · **Settings** (language, auto-connect, folders) |
 
-Everywhere: serial links (USB or UART), recent ports and auto-connect (on Settings); staged changes with one **Write** / **Discard** bar; **Ctrl+K** search over pages and parameter
+Everywhere: serial links (USB or UART), recent ports and auto-connect (on Settings); Reboot next to Disconnect; an issues button in the top bar with the missing sensors, setup steps and PreArm reasons; staged changes with one **Write** / **Discard** bar; **Ctrl+K** search over pages and parameter
 descriptions; inspection dock (**Ctrl+J**) with pinned values and 30 s graphs; yellow banners for missing sensors
 and calibrations; a readiness check on disconnect.
 
@@ -37,6 +36,10 @@ env -u GTK_PATH -u GIO_MODULE_DIR -u GTK_EXE_PREFIX -u GTK_IM_MODULE_FILE GSETTI
 ```
 
 `tool/build_appimage.sh` packages a Linux AppImage.
+
+`tool/install_linux_desktop.sh` adds the launcher and the "L" icon for the current user, so the dock and the app grid
+show it (GNOME on Wayland takes the icon from the launcher, not from the window). `tool/gen_icons.py` regenerates
+the icons of every platform from the Lectron logo.
 
 ## Tests
 

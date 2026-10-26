@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../core/board_controller.dart';
 import '../../core/firmware.dart';
 import '../../core/models.dart';
@@ -75,7 +77,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
         !await confirm(
           context,
           'Flash firmware',
-          '$_localName\n\nDo not unplug the board while flashing. Parameters and calibration are kept.',
+          '$_localName\n\n${tr('Do not unplug the board while flashing. Parameters and calibration are kept.')}',
           action: 'Flash',
         )) {
       return;
@@ -123,7 +125,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
                     OutlinedButton.icon(
                       onPressed: f.running ? null : c.detectBoard,
                       icon: const Icon(Icons.search, size: 16),
-                      label: Text('Detect board'),
+                      label: Text(tr('Detect board')),
                     ),
                   ],
                 ),
@@ -146,7 +148,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
                     OutlinedButton.icon(
                       onPressed: f.running ? null : _pickFile,
                       icon: const Icon(Icons.folder_open, size: 16),
-                      label: const Text('Choose .apj / .px4 / .bin…'),
+                      label: Text(tr('Choose .apj / .px4 / .bin…')),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -154,7 +156,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
                           ? Muted('No file chosen')
                           : Text(
                               '$_localName  ·  ${(local.image.length / 1024).round()} KB  ·  '
-                              '${local.boardId == null ? 'no board ID' : 'board ID ${local.boardId}'}',
+                              '${local.boardId == null ? tr('no board ID') : '${tr('board ID')} ${local.boardId}'}',
                               style: monoStyle.copyWith(fontSize: 12.5),
                             ),
                     ),
@@ -197,11 +199,14 @@ class _FirmwarePageState extends State<FirmwarePage> {
                     FilledButton.icon(
                       onPressed: f.running || local == null ? null : _flash,
                       icon: const Icon(Icons.system_update_alt, size: 16),
-                      label: Text('Flash firmware'),
+                      label: Text(tr('Flash firmware')),
                     ),
                     const SizedBox(width: 10),
                     if (f.tone == Tone.ok && !f.running)
-                      OutlinedButton(onPressed: () => c.showPage(AppPage.calibration), child: Text('Open Calibration')),
+                      OutlinedButton(
+                        onPressed: () => c.showPage(AppPage.calibration),
+                        child: Text(tr('Open Calibration')),
+                      ),
                   ],
                 ),
               ],

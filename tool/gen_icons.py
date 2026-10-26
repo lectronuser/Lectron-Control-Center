@@ -56,6 +56,9 @@ def main():
     mac = master(letter, margin=0.1)
     for size in (16, 32, 64, 128, 256, 512, 1024):
         save(mac, f"macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_{size}.png", size)
+    # Linux launcher icons (installed by tool/install_linux_desktop.sh and packed into the AppImage)
+    for size in (16, 24, 32, 48, 64, 128, 256, 512):
+        save(mac, f"linux/packaging/icons/hicolor/{size}x{size}/apps/com.lectron.lectron_control.png", size)
     icon.save(os.path.join(ROOT, "windows/runner/resources/app_icon.ico"),
               sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
     print("icons written")

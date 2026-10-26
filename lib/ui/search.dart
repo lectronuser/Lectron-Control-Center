@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'i18n.dart';
+
 import 'package:flutter/services.dart';
 
 import '../core/board_controller.dart';
@@ -25,7 +28,7 @@ List<SearchHit> searchAll(BoardController c, String query, {int limit = 40}) {
   bool matches(String text) => words.every(text.contains);
   final hits = <SearchHit>[
     for (final p in pageInfos)
-      if (matches('${p.label} ${p.label} ${p.keywords} ${p.group}'.toLowerCase())) SearchHit.page(p),
+      if (matches('${p.label} ${tr(p.label)} ${p.keywords} ${tr(p.group)}'.toLowerCase())) SearchHit.page(p),
   ];
   final upper = q.toUpperCase();
   final names = c.params.keys.toList()..sort();
@@ -109,7 +112,7 @@ class _SearchDialogState extends State<_SearchDialog> {
                     if (hits.isNotEmpty) _open(hits[_selected]);
                   },
                   decoration: InputDecoration(
-                    hintText: 'Search pages and parameters, e.g. RTL_ALT, fence, battery capacity',
+                    hintText: tr('Search pages and parameters, e.g. RTL_ALT, fence, battery capacity'),
                     prefixIcon: const Icon(Icons.search, size: 18),
                   ),
                 ),
@@ -131,11 +134,11 @@ class _SearchDialogState extends State<_SearchDialog> {
                             dense: true,
                             leading: Icon(page?.icon ?? Icons.tune, size: 18, color: AppColors.muted),
                             title: page != null
-                                ? Text(page.label)
+                                ? Text(tr(page.label))
                                 : Text(hit.param!, style: monoStyle.copyWith(fontSize: 13)),
                             subtitle: Text(
                               page != null
-                                  ? page.group
+                                  ? tr(page.group)
                                   : [
                                       if (meta != null && meta.title.isNotEmpty) meta.title,
                                       formatValue(widget.c, hit.param!),

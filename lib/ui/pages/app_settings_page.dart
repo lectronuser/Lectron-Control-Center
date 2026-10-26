@@ -3,9 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../core/board_controller.dart';
+import '../i18n.dart';
 import '../widgets.dart';
 
-/// Application settings: connection behaviour, banners and folders.
+/// Application settings: language, connection behaviour and folders.
 class AppSettingsPage extends StatelessWidget {
   const AppSettingsPage(this.c, {super.key});
   final BoardController c;
@@ -13,18 +14,33 @@ class AppSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final storage = c.storage;
-    bool flag(String key, [bool fallback = true]) => storage.getBool(key) ?? fallback;
-    void set(String key, bool value) {
-      storage.put(key, value);
-      c.edit(() {});
-    }
-
     return PageFrame(
       title: 'Settings',
-      subtitle: 'Connection and behaviour of the app',
+      subtitle: 'Language, connection and behaviour of the app',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          AppCard(
+            title: 'Language',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FormRow(
+                  'Language',
+                  SizedBox(
+                    width: 220,
+                    child: EnumDropdown(
+                      options: {for (final (i, e) in languages.entries.indexed) i: e.value},
+                      value: languages.keys.toList().indexOf(c.language).clamp(0, languages.length - 1),
+                      onChanged: (i) => c.setLanguage(languages.keys.elementAt(i)),
+                    ),
+                  ),
+                ),
+                Muted('Parameter names and the firmware\'s own messages stay in English.', size: 12),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           AppCard(
             title: 'Connection',
             child: Column(
@@ -38,7 +54,7 @@ class AppSettingsPage extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Expanded(child: Muted('Recent links: ${c.recentLinks.map((r) => r.id).join(', ')}')),
+                    Expanded(child: Muted('${tr('Recent links')}: ${c.recentLinks.map((r) => r.id).join(', ')}')),
                     TextButton(
                       onPressed: c.recentLinks.isEmpty
                           ? null
@@ -46,23 +62,10 @@ class AppSettingsPage extends StatelessWidget {
                               c.recentLinks.clear();
                               storage.put('recent', '');
                             }),
-                      child: Text('Clear'),
+                      child: Text(tr('Clear')),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          AppCard(
-            title: 'Behaviour',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CheckRow('Show the yellow setup banners', flag('banners'), (v) => set('banners', v)),
-                CheckRow('Open the inspection dock at start', c.dockOpen, (v) {
-                  if (v != c.dockOpen) c.toggleDock();
-                }),
               ],
             ),
           ),
@@ -78,7 +81,7 @@ class AppSettingsPage extends StatelessWidget {
                     children: [
                       Expanded(child: SelectableText(storage.root?.path ?? '-')),
                       if (storage.root != null)
-                        TextButton(onPressed: () => openExternally(storage.root!.path), child: Text('Open')),
+                        TextButton(onPressed: () => openExternally(storage.root!.path), child: Text(tr('Open'))),
                     ],
                   ),
                 ),
@@ -88,7 +91,7 @@ class AppSettingsPage extends StatelessWidget {
                     children: [
                       Expanded(child: SelectableText(storage.logDir?.path ?? '-')),
                       if (storage.logDir != null && Directory(storage.logDir!.path).existsSync())
-                        TextButton(onPressed: () => openExternally(storage.logDir!.path), child: Text('Open')),
+                        TextButton(onPressed: () => openExternally(storage.logDir!.path), child: Text(tr('Open'))),
                     ],
                   ),
                 ),

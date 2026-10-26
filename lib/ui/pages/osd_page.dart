@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../param_form.dart';
@@ -60,7 +62,7 @@ class _OsdEditorState extends State<OsdEditor> {
           else ...[
             SegmentedButton<int>(
               showSelectedIcon: false,
-              segments: [for (final s in screens) ButtonSegment(value: s, label: Text('Screen $s'))],
+              segments: [for (final s in screens) ButtonSegment(value: s, label: Text('${tr('Screen')} $s'))],
               selected: {_screen},
               onSelectionChanged: (s) => setState(() {
                 _screen = s.first;

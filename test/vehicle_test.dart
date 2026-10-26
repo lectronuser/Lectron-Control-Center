@@ -7,6 +7,7 @@ import 'package:lectron_control/core/param_meta.dart';
 import 'package:lectron_control/core/transport.dart';
 import 'package:lectron_control/ui/pages/calibration_page.dart';
 import 'package:lectron_control/mavlink/mavlink.dart';
+import 'package:lectron_control/ui/i18n.dart';
 import 'package:lectron_control/ui/search.dart';
 
 import 'support/fake_board.dart';
@@ -149,13 +150,6 @@ void main() {
     expect(c.messageHz('ATTITUDE'), greaterThan(0));
     expect(c.msgStats['RAW_IMU']!.last.i('zacc'), lessThan(-990));
 
-    // pins: a message field and a parameter
-    c.pin('ATTITUDE.roll');
-    c.pin('PILOT_SPEED_UP');
-    await h.run(tester, 1);
-    expect(c.watchPins.first.value, closeTo(0.012, 1e-6));
-    expect(c.watchPins.last.value, 250);
-
     // a staged change stays on the PC until written, then the vehicle echoes it
     c.stageParam('PILOT_SPEED_UP', 300);
     expect(c.isStaged('PILOT_SPEED_UP'), isTrue);
@@ -171,7 +165,7 @@ void main() {
     // the search finds parameters by name
     final hits = searchAll(c, 'pilot_speed');
     expect(hits.first.param, 'PILOT_SPEED_UP');
-    expect(searchAll(c, 'safety').first.info!.label, 'Board Settings');
+    expect(searchAll(c, 'osd').first.info!.label, 'Board Settings');
 
     // flight mode and arm go out as commands
     c.setFlightMode(5);
@@ -194,5 +188,14 @@ void main() {
     expect(facingSouth.$1, lessThan(-0.5));
     expect(sphereCell(level), isNot(sphereCell(upsideDown)));
     expect(sphereCell((0, 0, 1)), inInclusiveRange(0, sphereCells - 1));
+  });
+
+  test('Turkish translation falls back to English', () {
+    appLanguage = 'tr';
+    expect(tr('Connect'), 'Bağlan');
+    expect(tr('Outputs & Receiver'), 'Çıkışlar ve Alıcı');
+    expect(tr('A text nobody translated'), 'A text nobody translated');
+    appLanguage = 'en';
+    expect(tr('Connect'), 'Connect');
   });
 }

@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../../core/param_meta.dart';
@@ -10,7 +12,6 @@ import '../shell.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'param_tools.dart';
-import '../banners.dart';
 import 'peripherals_page.dart';
 
 const _paramFiles = XTypeGroup(label: 'Parameter files', extensions: ['param', 'parm']);
@@ -77,9 +78,9 @@ class _ParamsPageState extends State<ParamsPage> {
     if (location == null) return;
     try {
       await File(location.path).writeAsString(c.paramFileText());
-      c.notify('Saved ${c.params.length} parameters to ${location.path}');
+      c.notify('Saved ${c.params.length} ${tr('parameters to')} ${location.path}');
     } catch (e) {
-      c.notify('Could not save: $e', sticky: true);
+      c.notify('${tr('Could not save:')} $e', sticky: true);
     }
   }
 
@@ -87,7 +88,7 @@ class _ParamsPageState extends State<ParamsPage> {
     final file = await fileDialog(
       (m) => c.notify(m, sticky: true),
       () => openFile(
-        acceptedTypeGroups: const [
+        acceptedTypeGroups: [
           _paramFiles,
           XTypeGroup(label: 'All files', extensions: ['*']),
         ],
@@ -98,7 +99,7 @@ class _ParamsPageState extends State<ParamsPage> {
       c.applyParamFile(await file.readAsString());
       setState(() => _filter = _Filter.modified);
     } catch (e) {
-      c.notify('Could not read ${file.name}: $e', sticky: true);
+      c.notify('${tr('Could not read')} ${file.name}: $e', sticky: true);
     }
   }
 
@@ -137,15 +138,15 @@ class _ParamsPageState extends State<ParamsPage> {
   }
 
   Widget _tabs() => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
+    padding: EdgeInsets.only(bottom: 12),
     child: Align(
       alignment: Alignment.centerLeft,
       child: SegmentedButton<int>(
         showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(value: 0, label: Text('All parameters')),
-          ButtonSegment(value: 1, label: Text('By group')),
-          ButtonSegment(value: 2, label: Text('Peripherals')),
+        segments: [
+          ButtonSegment(value: 0, label: Text(tr('All parameters'))),
+          ButtonSegment(value: 1, label: Text(tr('By group'))),
+          ButtonSegment(value: 2, label: Text(tr('Peripherals'))),
         ],
         selected: {_tab},
         onSelectionChanged: (s) => setState(() => _tab = s.first),
@@ -166,14 +167,7 @@ class _ParamsPageState extends State<ParamsPage> {
       return PageFrame(
         title: 'Parameters',
         subtitle: 'GPS, battery monitor, rangefinder, airspeed, optical flow, LEDs, buzzer, camera and gimbal',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _tabs(),
-            IssueBanners(c, only: const {AppPage.params}),
-            PeripheralsView(c),
-          ],
-        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [_tabs(), PeripheralsView(c)]),
       );
     }
     final names = [
@@ -183,9 +177,9 @@ class _ParamsPageState extends State<ParamsPage> {
     final edits = c.paramEdits.length;
     final String loadText;
     if (c.loadingAllParams) {
-      loadText = 'Downloading parameters ${c.paramsReceived}/${c.paramCount == 0 ? '?' : c.paramCount}…';
+      loadText = 'Downloading ${tr('parameters')} ${c.paramsReceived}/${c.paramCount == 0 ? '?' : c.paramCount}…';
     } else if (c.fullLoaded) {
-      loadText = '${c.params.length} parameters';
+      loadText = '${c.params.length} ${tr('parameters')}';
     } else {
       loadText = c.target == null ? 'Waiting for the vehicle' : 'Waiting for the parameter list';
     }
@@ -212,7 +206,7 @@ class _ParamsPageState extends State<ParamsPage> {
                     controller: _searchText,
                     onChanged: (t) => setState(() => _search = t),
                     decoration: InputDecoration(
-                      hintText: 'Search name or description, e.g. SERIAL1 or battery capacity',
+                      hintText: tr('Search name or description, e.g. SERIAL1 or battery capacity'),
                       prefixIcon: const Icon(Icons.search, size: 18),
                       prefixIconConstraints: const BoxConstraints(minWidth: 38),
                     ),
@@ -280,9 +274,9 @@ class _ParamsPageState extends State<ParamsPage> {
                   c.paramRebootAfterWrite,
                   (v) => c.edit(() => c.paramRebootAfterWrite = v),
                 ),
-                OutlinedButton(onPressed: edits > 0 ? c.revertParamEdits : null, child: Text('Discard')),
+                OutlinedButton(onPressed: edits > 0 ? c.revertParamEdits : null, child: Text(tr('Discard'))),
                 const SizedBox(width: 10),
-                FilledButton(onPressed: c.connected && edits > 0 ? c.writeParamEdits : null, child: Text('Write')),
+                FilledButton(onPressed: c.connected && edits > 0 ? c.writeParamEdits : null, child: Text(tr('Write'))),
               ],
             ),
           ],
@@ -297,7 +291,7 @@ class _ParamsPageState extends State<ParamsPage> {
         Muted(loadText),
         LinkButton(c, 'Refresh', c.loadAllParams, icon: Icons.refresh),
         PopupMenuButton<String>(
-          tooltip: 'More',
+          tooltip: tr('More'),
           icon: const Icon(Icons.more_vert),
           onSelected: (v) => switch (v) {
             'load' => _loadFile(),
@@ -307,14 +301,14 @@ class _ParamsPageState extends State<ParamsPage> {
             _ => null,
           },
           itemBuilder: (context) => [
-            PopupMenuItem(value: 'load', enabled: c.fullLoaded, child: Text('Load file…')),
-            PopupMenuItem(value: 'save', enabled: c.params.isNotEmpty, child: Text('Save file…')),
+            PopupMenuItem(value: 'load', enabled: c.fullLoaded, child: Text(tr('Load file…'))),
+            PopupMenuItem(value: 'save', enabled: c.params.isNotEmpty, child: Text(tr('Save file…'))),
             const PopupMenuDivider(),
-            PopupMenuItem(value: 'reboot', enabled: c.connected, child: Text('Reboot vehicle')),
+            PopupMenuItem(value: 'reboot', enabled: c.connected, child: Text(tr('Reboot vehicle'))),
             PopupMenuItem(
               value: 'reset',
               enabled: c.connected,
-              child: Text('Reset to defaults…', style: const TextStyle(color: AppColors.err)),
+              child: Text(tr('Reset to defaults…'), style: const TextStyle(color: AppColors.err)),
             ),
           ],
         ),
@@ -456,11 +450,6 @@ class _Details extends StatelessWidget {
                 Expanded(
                   child: SelectableText(name, style: monoStyle.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
-                IconButton(
-                  tooltip: c.isPinned(name) ? 'Unpin from dock' : 'Pin to dock',
-                  onPressed: () => c.isPinned(name) ? c.unpin(name) : c.pin(name),
-                  icon: Icon(c.isPinned(name) ? Icons.push_pin : Icons.push_pin_outlined, size: 18),
-                ),
                 IconButton(onPressed: onClose, icon: const Icon(Icons.close, size: 18)),
               ],
             ),
@@ -475,7 +464,7 @@ class _Details extends StatelessWidget {
             _Editor(c, name, meta, value),
             if (problem != null) ...[
               const SizedBox(height: 6),
-              Text('Value is $problem', style: const TextStyle(color: AppColors.err, fontSize: 12)),
+              Text('${tr('Value is')} ${tr(problem)}', style: const TextStyle(color: AppColors.err, fontSize: 12)),
             ],
             const SizedBox(height: 14),
             _kv('Vehicle value', formatParam(c.params[name] ?? 0)),
@@ -496,7 +485,10 @@ class _Details extends StatelessWidget {
                   children: [
                     const Icon(Icons.restart_alt, size: 15, color: AppColors.warn),
                     const SizedBox(width: 6),
-                    Text('Takes effect after a reboot', style: const TextStyle(color: AppColors.warn, fontSize: 12)),
+                    Text(
+                      tr('Takes effect after a reboot'),
+                      style: const TextStyle(color: AppColors.warn, fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -507,9 +499,12 @@ class _Details extends StatelessWidget {
               spacing: 8,
               children: [
                 if (boot != null && !sameParamValue(boot, value))
-                  OutlinedButton(onPressed: () => c.stageParam(name, boot), child: Text('Revert to boot value')),
+                  OutlinedButton(onPressed: () => c.stageParam(name, boot), child: Text(tr('Revert to boot value'))),
                 if (meta?.defaultValue != null && !sameParamValue(meta!.defaultValue!, value))
-                  OutlinedButton(onPressed: () => c.stageParam(name, meta.defaultValue!), child: Text('Use default')),
+                  OutlinedButton(
+                    onPressed: () => c.stageParam(name, meta.defaultValue!),
+                    child: Text(tr('Use default')),
+                  ),
               ],
             ),
           ],

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/models.dart';
+import 'i18n.dart';
 import 'theme.dart';
 
 /// Opens a file or folder with the desktop's default application.
@@ -59,7 +60,7 @@ class AppCard extends StatelessWidget {
                 children: [
                   if (title != null)
                     Text(
-                      title!.toUpperCase(),
+                      tr(title!).toUpperCase(),
                       style: const TextStyle(
                         color: AppColors.muted,
                         fontSize: 11,
@@ -126,7 +127,7 @@ class StatusChip extends StatelessWidget {
           ],
           Flexible(
             child: Text(
-              text,
+              tr(text),
               overflow: TextOverflow.ellipsis,
               style: monoStyle.copyWith(color: color, fontSize: 12, fontWeight: FontWeight.w700),
             ),
@@ -144,7 +145,7 @@ class StatusLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      Text(status.text, style: TextStyle(color: toneColor(status.tone, AppColors.muted), fontSize: 13));
+      Text(tr(status.text), style: TextStyle(color: toneColor(status.tone, AppColors.muted), fontSize: 13));
 }
 
 class Muted extends StatelessWidget {
@@ -154,7 +155,7 @@ class Muted extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    text,
+    tr(text),
     style: TextStyle(color: AppColors.muted, fontSize: size),
   );
 }
@@ -186,7 +187,7 @@ class PageFrame extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: Theme.of(context).textTheme.titleLarge),
+                Text(tr(title), style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 2),
                 Muted(subtitle),
               ],
@@ -217,7 +218,7 @@ class SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 22, bottom: 10),
-    child: Text(text, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+    child: Text(tr(text), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
   );
 }
 
@@ -264,7 +265,7 @@ class SimpleTable extends StatelessWidget {
                 cellOf(
                   col,
                   Text(
-                    col.label,
+                    tr(col.label),
                     style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w700, fontSize: 12),
                   ),
                 ),
@@ -295,9 +296,9 @@ class CellText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: text.length > 24 ? text : '',
+    message: text.length > 24 ? tr(text) : '',
     child: Text(
-      text,
+      tr(text),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: (mono ? monoStyle : const TextStyle()).copyWith(
@@ -478,7 +479,7 @@ class CheckRow extends StatelessWidget {
           Checkbox(value: value, onChanged: onChanged == null ? null : (v) => onChanged!(v ?? false)),
           const SizedBox(width: 4),
           Flexible(
-            child: Text(label, style: TextStyle(color: onChanged == null ? AppColors.off : AppColors.text)),
+            child: Text(tr(label), style: TextStyle(color: onChanged == null ? AppColors.off : AppColors.text)),
           ),
           const SizedBox(width: 8),
         ],
@@ -519,8 +520,8 @@ class DangerButton extends StatelessWidget {
       side: BorderSide(color: AppColors.err.withValues(alpha: 0.4)),
     );
     return icon == null
-        ? OutlinedButton(onPressed: onPressed, style: style, child: Text(label))
-        : OutlinedButton.icon(onPressed: onPressed, style: style, icon: Icon(icon, size: 16), label: Text(label));
+        ? OutlinedButton(onPressed: onPressed, style: style, child: Text(tr(label)))
+        : OutlinedButton.icon(onPressed: onPressed, style: style, icon: Icon(icon, size: 16), label: Text(tr(label)));
   }
 }
 
@@ -534,14 +535,14 @@ Future<bool> confirm(
   final answer = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(title, style: Theme.of(context).textTheme.titleMedium),
-      content: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: Text(message)),
+      title: Text(tr(title), style: Theme.of(context).textTheme.titleMedium),
+      content: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: Text(tr(message))),
       actions: [
-        OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        OutlinedButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('Cancel'))),
         FilledButton(
           style: danger ? FilledButton.styleFrom(backgroundColor: AppColors.err) : null,
           onPressed: () => Navigator.pop(context, true),
-          child: Text(action),
+          child: Text(tr(action)),
         ),
       ],
     ),

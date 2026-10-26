@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lectron_control/core/app_storage.dart';
-import 'package:lectron_control/core/recipes.dart';
 import 'package:lectron_control/core/zones.dart';
 import 'package:lectron_control/ui/map_tiles.dart';
 
@@ -49,11 +48,6 @@ void main() {
     final k = parseKml(kml, allowed: true);
     expect(k.single.name, 'Field');
     expect(k.single.contains(40.005, 29.005), isTrue);
-  });
-
-  test('port presets: serial port substitution', () {
-    final gps = builtinRecipes.firstWhere((r) => r.id == 'ap_gps_serial');
-    expect(gps.resolve(port: 4)['SERIAL4_PROTOCOL'], 5);
   });
 
   test('offline map tiles cover an area and refuse too many', () {

@@ -40,6 +40,9 @@ class CalState {
   Set<String> sidesDone = {};
   String? sideActive;
   int progress = 0;
+
+  /// Set by a cancel: messages of the cancelled calibration that are still on their way are ignored.
+  double cancelledAt = -1e9;
   final Map<int, MagCalState> mags = {};
   final List<String> log = [];
 
@@ -138,10 +141,10 @@ class MotorIdentState {
 const List<(String key, String title)> wizardSteps = [
   ('accel', 'Accelerometer'),
   ('compass', 'Compass'),
-  ('level', 'Level · Gyro · Baro'),
-  ('radio', 'Radio calibration'),
-  ('esccal', 'ESC calibration'),
-  ('compassmot', 'CompassMot'),
+  ('level', 'Level horizon'),
+  ('gyro', 'Gyroscope'),
+  ('baro', 'Barometer'),
+  ('airspeed', 'Airspeed'),
 ];
 
 extension SetupActions on BoardController {
@@ -217,8 +220,9 @@ extension SetupActions on BoardController {
         if (isPx4) {
           sendCommand(Mav.cmdPreflightCalibration, [0, 1, 0, 0, 0, 0, 0]);
         } else {
-          // all compasses, retry on failure, save automatically, no delay, no automatic reboot
-          sendCommand(Mav.cmdDoStartMagCal, [0, 1, 1, 0, 0]);
+          // all compasses, no retry, save automatically, no delay, no automatic reboot; with retry on, a compass
+          // that fails (e.g. "bad orientation") restarts for ever and the calibration never finishes
+          sendCommand(Mav.cmdDoStartMagCal, [0, 0, 1, 0, 0]);
         }
       case CalKind.largeVehicleMag:
         cal.message = 'Setting the compass offsets from the GPS position and the given heading…';
@@ -269,20 +273,46 @@ extension SetupActions on BoardController {
     _changed();
   }
 
+  /// Stops the running calibration on the vehicle, not only on the screen.
   void cancelCalibration() {
-    if (cal.kind == CalKind.compass && !isPx4) sendCommand(Mav.cmdDoCancelMagCal, [0]);
-    if (cal.kind == CalKind.compassMot) _finishCompassMot();
-    if (isPx4 && cal.busy) {
+    if (isPx4) {
       // PX4 cancels on any calibration command with all zeros
-      sendCommand(Mav.cmdPreflightCalibration, [0, 0, 0, 0, 0, 0, 0]);
+      if (cal.busy) sendCommand(Mav.cmdPreflightCalibration, [0, 0, 0, 0, 0, 0, 0]);
+    } else {
+      switch (cal.kind) {
+        case CalKind.compass:
+          sendCommand(Mav.cmdDoCancelMagCal, [0]);
+        case CalKind.accel:
+          // the accelerometer calibrator gives up when told the vehicle position failed
+          sendCommand(Mav.cmdAccelcalVehiclePos, [Mav.accelcalFailed]);
+        case CalKind.compassMot:
+          _finishCompassMot();
+        default:
+          break;
+      }
     }
     cal
       ..phase = CalPhase.idle
-      ..message = 'Cancelled';
+      ..pose = 0
+      ..sideActive = null
+      ..cancelledAt = mono()
+      ..message = 'Calibration cancelled';
     _changed();
   }
 
   void acceptMagCal() => sendCommand(Mav.cmdDoAcceptMagCal, [0]);
+
+  /// True when the last compass calibration failed because the orientation did not match.
+  bool get magOrientationFailed => cal.kind == CalKind.compass && cal.mags.values.any((m) => m.status == 6);
+
+  /// Lets the calibration correct the orientation of internal compasses too (COMPASS_AUTO_ROT = 3), then the
+  /// calibration can be run again.
+  void allowMagOrientationFix() {
+    if (target == null || !params.containsKey('COMPASS_AUTO_ROT')) return;
+    sendParamSets([('COMPASS_AUTO_ROT', 3)]);
+    cal.message = 'Orientation fix allowed (COMPASS_AUTO_ROT = 3). Start the calibration again.';
+    _changed();
+  }
 
   /// Ends CompassMot: ArduPilot leaves it on any COMMAND_ACK from the ground station.
   void _finishCompassMot() =>
@@ -299,6 +329,8 @@ extension SetupActions on BoardController {
 
   void _onAccelPose(int pos) {
     if (cal.kind != CalKind.accel && cal.kind != null) return;
+    // the vehicle may still ask for a pose right after a cancel
+    if (!cal.busy && mono() - cal.cancelledAt < 5) return;
     cal.kind = CalKind.accel;
     if (pos == Mav.accelcalSuccess) {
       cal
@@ -323,7 +355,7 @@ extension SetupActions on BoardController {
   }
 
   void _onMagProgress(MavMessage m) {
-    if (cal.kind != CalKind.compass) return;
+    if (cal.kind != CalKind.compass || !cal.busy) return;
     final s = cal.mags.putIfAbsent(m.i('compass_id'), () => MagCalState(m.i('compass_id')));
     s
       ..pct = m.i('completion_pct')
@@ -353,7 +385,9 @@ extension SetupActions on BoardController {
             ? (cal.mags.values.every((e) => e.autosaved)
                   ? 'Compass calibration saved. Reboot to use it.'
                   : 'Calibration finished, press Accept to save it')
-            : 'Compass calibration failed';
+            : (cal.mags.values.any((e) => e.status == 6)
+                  ? 'Compass calibration failed: the compass orientation does not match the board'
+                  : 'Compass calibration failed');
       if (ok) rebootRequired = true;
     }
     _changed();
@@ -394,6 +428,7 @@ extension SetupActions on BoardController {
   /// PX4 drives its calibrations with "[cal] ..." texts; ArduPilot reports some results as text too.
   void _onCalText(String text) {
     if (!cal.busy && !text.startsWith('[cal]')) return;
+    if (!cal.busy && mono() - cal.cancelledAt < 5) return;
     if (text.startsWith('[cal]')) _calLog(text.substring(5).trim());
     final t = text.toLowerCase();
     if (t.startsWith('[cal] pending:')) {
@@ -825,43 +860,6 @@ extension SetupActions on BoardController {
       'BATT_LOW_VOLT': double.parse((cells * 3.6).toStringAsFixed(2)),
     };
     out.removeWhere((name, _) => !params.containsKey(name));
-    return out;
-  }
-
-  /// Recommended failsafe settings for the connected firmware.
-  Map<String, num> recommendedFailsafes() {
-    final out = <String, num>{};
-    void put(String name, num value) {
-      if (params.containsKey(name)) out[name] = value;
-    }
-
-    if (isPx4) {
-      put('NAV_RCL_ACT', 2); // return
-      put('COM_RC_LOSS_T', 0.5);
-      put('NAV_DLL_ACT', 0);
-      put('COM_LOW_BAT_ACT', 3); // warn, then return, then land
-      put('GF_ACTION', 1);
-    } else {
-      final set = metaSetFor(autopilot: 3, mavType: heartbeatType ?? 2);
-      if (set == 'ArduPlane') {
-        put('THR_FAILSAFE', 1);
-        put('FS_SHORT_ACTN', 0);
-        put('FS_LONG_ACTN', 1);
-        put('BATT_FS_LOW_ACT', 1);
-        put('BATT_FS_CRT_ACT', 1);
-      } else if (set == 'Rover') {
-        put('FS_THR_ENABLE', 1);
-        put('FS_ACTION', 2);
-        put('BATT_FS_LOW_ACT', 2);
-      } else {
-        put('FS_THR_ENABLE', 1); // RTL
-        put('FS_GCS_ENABLE', 1);
-        put('FS_EKF_ACTION', 1);
-        put('FS_CRASH_CHECK', 1);
-        put('BATT_FS_LOW_ACT', 2); // RTL
-        put('BATT_FS_CRT_ACT', 1); // land
-      }
-    }
     return out;
   }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../param_form.dart';
@@ -21,7 +23,7 @@ class PeripheralsView extends StatelessWidget {
 
 Widget _live(BoardController c, String type, String Function(dynamic m) text) {
   final stat = c.msgStats[type];
-  if (stat == null || mono() - stat.t > 3) return Muted('$type: no data', size: 12);
+  if (stat == null || mono() - stat.t > 3) return Muted('$type: ${tr('no data')}', size: 12);
   return Text(text(stat.last), style: monoStyle.copyWith(fontSize: 12.5, color: AppColors.ok));
 }
 
@@ -80,12 +82,11 @@ List<ParamSection> _ardupilot(BoardController c) => [
     PField.one('ARSPD_RATIO'),
     PField.one('ARSPD_AUTOCAL'),
   ], top: _live(c, 'VFR_HUD', (m) => 'Airspeed ${m.d('airspeed').toStringAsFixed(1)} m/s')),
-  ParamSection('Optical flow', [
-    PField.one('FLOW_TYPE'),
-    PField.one('FLOW_ORIENT_YAW'),
-    PField.one('FLOW_FXSCALER'),
-    PField.one('FLOW_FYSCALER'),
-  ], top: _live(c, 'OPTICAL_FLOW', (m) => 'X ${m.i('flow_x')}  Y ${m.i('flow_y')}  quality ${m.i('quality')}')),
+  ParamSection(
+    'Optical flow',
+    [PField.one('FLOW_TYPE'), PField.one('FLOW_ORIENT_YAW'), PField.one('FLOW_FXSCALER'), PField.one('FLOW_FYSCALER')],
+    top: _live(c, 'OPTICAL_FLOW', (m) => 'X ${m.i('flow_x')}  Y ${m.i('flow_y')}  ${tr('quality')} ${m.i('quality')}'),
+  ),
   ParamSection('LEDs & buzzer', [
     PField.one('NTF_LED_TYPES'),
     PField.one('NTF_LED_BRIGHT'),
@@ -212,11 +213,11 @@ class _BatteryCalibratorState extends State<BatteryCalibrator> {
         width: 90,
         child: TextField(
           controller: _measured,
-          decoration: const InputDecoration(suffixText: 'V'),
+          decoration: InputDecoration(suffixText: tr('V')),
         ),
       ),
       const SizedBox(width: 8),
-      OutlinedButton(onPressed: _apply, child: Text('Correct voltage')),
+      OutlinedButton(onPressed: _apply, child: Text(tr('Correct voltage'))),
     ],
   );
 }

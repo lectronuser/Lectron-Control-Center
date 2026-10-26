@@ -60,6 +60,11 @@ class LectronControlCenterApp extends StatefulWidget {
 class _LectronControlCenterAppState extends State<LectronControlCenterApp> {
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(
     onExitRequested: () async {
+      // closing in the middle of a flash leaves the board in its bootloader with half a firmware
+      if (widget.controller.flash.running) {
+        widget.controller.notify('Wait until the firmware flash has finished before closing the app', sticky: true);
+        return AppExitResponse.cancel;
+      }
       await widget.controller.shutdown();
       return AppExitResponse.exit;
     },

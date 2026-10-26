@@ -2,10 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../board/board_data.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
-import '../../core/param_meta.dart';
 import '../banners.dart';
 import '../param_form.dart';
 import '../theme.dart';
@@ -27,15 +28,33 @@ class _CalibrationPageState extends State<CalibrationPage> {
 
   BoardController get c => widget.c;
 
-  void _go(int step) => setState(() => _step = step.clamp(0, wizardSteps.length - 1));
+  void _go(int step) => setState(() => _step = step.clamp(0, _steps.length - 1));
+
+  /// The steps for this vehicle: airspeed only on planes (ArduPilot) or with a differential pressure sensor (PX4).
+  List<(String, String)> get _steps {
+    final plane = const {1, 16, 19, 20, 21, 22, 23, 24, 25}.contains(c.heartbeatType);
+    final airspeed = (c.isArdupilot && plane) || (c.isPx4 && c.params.containsKey('SENS_DPRES_OFF'));
+    return [
+      for (final s in wizardSteps)
+        if (s.$1 != 'airspeed' || airspeed) s,
+    ];
+  }
 
   Widget _content(String key) => switch (key) {
     'accel' => AccelCalPanel(c),
     'compass' => CompassCalPanel(c),
-    'level' => _SimpleCals(c),
-    'radio' => RadioCalPanel(c),
-    'esccal' => _EscCal(c),
-    'compassmot' => _CompassMot(c),
+    'level' => _SimpleCal(
+      c,
+      CalKind.level,
+      'Place the vehicle in its level flying attitude. Sets the AHRS trim so it hovers without drifting.',
+    ),
+    'gyro' => _SimpleCal(c, CalKind.gyro, 'Keep the vehicle completely still for a few seconds.'),
+    'baro' => _SimpleCal(
+      c,
+      CalKind.baro,
+      'Sets the current pressure as ground level. Keep the vehicle still and out of wind.',
+    ),
+    'airspeed' => _SimpleCal(c, CalKind.airspeed, 'Cover the pitot tube so no wind reaches it, then calibrate.'),
     _ => const SizedBox.shrink(),
   };
 
@@ -44,12 +63,12 @@ class _CalibrationPageState extends State<CalibrationPage> {
     if (c.target == null) {
       return PageFrame(
         title: 'Calibration',
-        subtitle: 'Accelerometer, compass, level, gyro, barometer, radio and ESC calibration, step by step',
+        subtitle: 'Accelerometer, compass, level, gyro and barometer calibration, step by step',
         child: Muted('Connect a vehicle to calibrate it'),
       );
     }
-    final (key, title) = wizardSteps[_step];
-    final doneCount = [for (final s in wizardSteps) c.wizardState(s.$1)].where((s) => s.isNotEmpty).length;
+    final (key, title) = _steps[_step];
+    final doneCount = [for (final s in _steps) c.wizardState(s.$1)].where((s) => s.isNotEmpty).length;
     final steps = AppCard(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
@@ -57,14 +76,14 @@ class _CalibrationPageState extends State<CalibrationPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
             child: LinearProgressIndicator(
-              value: doneCount / wizardSteps.length,
+              value: doneCount / _steps.length,
               minHeight: 5,
               backgroundColor: AppColors.surface2,
             ),
           ),
-          for (var i = 0; i < wizardSteps.length; i++)
+          for (var i = 0; i < _steps.length; i++)
             () {
-              final state = c.wizardState(wizardSteps[i].$1);
+              final state = c.wizardState(_steps[i].$1);
               return Material(
                 color: i == _step ? AppColors.accent.withValues(alpha: 0.13) : Colors.transparent,
                 child: ListTile(
@@ -78,7 +97,7 @@ class _CalibrationPageState extends State<CalibrationPage> {
                     color: state == 'done' ? AppColors.ok : (state == 'skipped' ? AppColors.warn : AppColors.off),
                   ),
                   title: Text(
-                    '${i + 1}. ${(wizardSteps[i].$2)}',
+                    '${i + 1}. ${tr(_steps[i].$2)}',
                     style: TextStyle(fontWeight: i == _step ? FontWeight.w700 : FontWeight.w400),
                   ),
                 ),
@@ -88,7 +107,7 @@ class _CalibrationPageState extends State<CalibrationPage> {
       ),
     );
     final content = AppCard(
-      title: '${_step + 1} / ${wizardSteps.length}  ·  $title',
+      title: '${_step + 1} / ${_steps.length}  ·  ${tr(title)}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -96,25 +115,28 @@ class _CalibrationPageState extends State<CalibrationPage> {
           const Divider(height: 32),
           Row(
             children: [
-              OutlinedButton(onPressed: _step == 0 || c.cal.busy ? null : () => _go(_step - 1), child: Text('Back')),
+              OutlinedButton(
+                onPressed: _step == 0 || c.cal.busy ? null : () => _go(_step - 1),
+                child: Text(tr('Back')),
+              ),
               const Spacer(),
               TextButton(
                 onPressed: () {
                   c.setWizardState(key, 'skipped');
                   _go(_step + 1);
                 },
-                child: Text('Skip'),
+                child: Text(tr('Skip')),
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: () => c.setWizardState(key, c.wizardState(key) == 'done' ? '' : 'done'),
                 icon: Icon(c.wizardState(key) == 'done' ? Icons.undo : Icons.check, size: 16),
-                label: Text(c.wizardState(key) == 'done' ? 'Not done' : 'Mark done'),
+                label: Text(tr(c.wizardState(key) == 'done' ? 'Not done' : 'Mark done')),
               ),
               const SizedBox(width: 8),
               FilledButton(
-                onPressed: _step == wizardSteps.length - 1 || c.cal.busy ? null : () => _go(_step + 1),
-                child: Text('Next'),
+                onPressed: _step == _steps.length - 1 || c.cal.busy ? null : () => _go(_step + 1),
+                child: Text(tr('Next')),
               ),
             ],
           ),
@@ -125,11 +147,10 @@ class _CalibrationPageState extends State<CalibrationPage> {
     );
     return PageFrame(
       title: 'Calibration',
-      subtitle: 'Accelerometer, compass, level, gyro, barometer, radio and ESC calibration, step by step',
+      subtitle: 'Accelerometer, compass, level, gyro and barometer calibration, step by step',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IssueBanners(c, only: const {AppPage.calibration}),
           ChangedSinceBoot(c, AppPage.calibration),
           LayoutBuilder(
             builder: (context, box) => box.maxWidth < 900
@@ -181,13 +202,13 @@ class _CalControls extends StatelessWidget {
               FilledButton.icon(
                 onPressed: busy || c.hb?.armed == true ? null : () => c.startCalibration(kind),
                 icon: const Icon(Icons.play_arrow, size: 16),
-                label: Text(startLabel),
+                label: Text(tr(startLabel)),
               )
             else
               OutlinedButton.icon(
                 onPressed: c.cancelCalibration,
                 icon: const Icon(Icons.stop, size: 16),
-                label: Text('Cancel'),
+                label: Text(tr('Cancel')),
               ),
             ...extra,
             if (mine && busy) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -273,7 +294,7 @@ class AccelCalPanel extends StatelessWidget {
                       style: FilledButton.styleFrom(backgroundColor: AppColors.ok),
                       onPressed: c.confirmAccelPose,
                       icon: const Icon(Icons.check, size: 16),
-                      label: Text('Done, vehicle in position'),
+                      label: Text(tr('Done, vehicle in position')),
                     ),
                 ],
               ),
@@ -457,13 +478,13 @@ class _CompassCalPanelState extends State<CompassCalPanel> {
                 LinearProgressIndicator(value: s.pct / 100, minHeight: 6, backgroundColor: AppColors.bg),
                 const SizedBox(height: 6),
                 Text(
-                  '${(magCalStatusText[s.status] ?? '${s.status}')}  ·  ${s.pct}%  ·  attempt ${s.attempt}',
+                  '${(magCalStatusText[s.status] ?? '${s.status}')}  ·  ${s.pct}%  ·  ${tr('attempt')} ${s.attempt}',
                   style: TextStyle(fontSize: 12, color: s.failed ? AppColors.err : AppColors.muted),
                 ),
                 if (s.reported && s.success)
                   Muted(
-                    'Fit ${s.fitness.toStringAsFixed(1)} mGauss  ·  offsets '
-                    '${s.offsets.map((v) => v.toStringAsFixed(0)).join(' / ')}  ·  scale ${s.scale.toStringAsFixed(2)}'
+                    'Fit ${s.fitness.toStringAsFixed(1)} mGauss  ·  ${tr('offsets')} '
+                    '${s.offsets.map((v) => v.toStringAsFixed(0)).join(' / ')}  ·  ${tr('scale')} ${s.scale.toStringAsFixed(2)}'
                     '${s.newOrientation != s.oldOrientation ? '  ·  orientation changed to ${s.newOrientation}' : ''}',
                     size: 12,
                   ),
@@ -496,12 +517,30 @@ class _CompassCalPanelState extends State<CompassCalPanel> {
                 'Start',
                 extra: [
                   if (mine && cal.phase == CalPhase.done && cal.mags.values.any((m) => !m.autosaved))
-                    FilledButton(onPressed: c.acceptMagCal, child: Text('Accept')),
+                    FilledButton(onPressed: c.acceptMagCal, child: Text(tr('Accept'))),
                 ],
               ),
+              if (c.isArdupilot && c.magOrientationFailed && !cal.busy) ...[
+                const SizedBox(height: 10),
+                const Note(
+                  'The compass is mounted differently from what the board expects. Let the calibration correct the '
+                  'orientation, then start it again.',
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: c.allowMagOrientationFix,
+                    icon: const Icon(Icons.screen_rotation_alt, size: 16),
+                    label: Text(tr('Allow orientation fix')),
+                  ),
+                ),
+              ],
               if (c.isArdupilot) ...[
                 const SizedBox(height: 10),
-                ParamForm(c, [PField.one('COMPASS_CAL_FIT', hint: 'Lower is stricter; 16 is the default')]),
+                ParamForm(c, [
+                  PField.one('COMPASS_CAL_FIT', hint: 'Lower is stricter; 16 is the default'),
+                  PField.one('COMPASS_AUTO_ROT', hint: '3 lets the calibration fix the orientation of any compass'),
+                ]),
               ],
             ],
           ),
@@ -509,7 +548,7 @@ class _CompassCalPanelState extends State<CompassCalPanel> {
         const SizedBox(height: 16),
         AppCard(
           title: 'Rotation guide',
-          trailing: Muted('${(_cells.length * 100 / sphereCells).round()} % covered', size: 12),
+          trailing: Muted('${(_cells.length * 100 / sphereCells).round()} % ${tr('covered')}', size: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -555,7 +594,7 @@ class _CompassCalPanelState extends State<CompassCalPanel> {
                       width: 100,
                       child: TextField(
                         controller: _yaw,
-                        decoration: InputDecoration(suffixText: '°', hintText: 'Heading'),
+                        decoration: InputDecoration(suffixText: tr('°'), hintText: tr('Heading')),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -563,7 +602,7 @@ class _CompassCalPanelState extends State<CompassCalPanel> {
                       onPressed: c.cal.busy
                           ? null
                           : () => c.startCalibration(CalKind.largeVehicleMag, yaw: double.tryParse(_yaw.text) ?? 0),
-                      child: Text('Calibrate from heading'),
+                      child: Text(tr('Calibrate from heading')),
                     ),
                   ],
                 ),
@@ -708,298 +747,18 @@ class _SpherePainter extends CustomPainter {
       old.current != current || old.cells.length != cells.length || old.back != back;
 }
 
-// ---- radio ------------------------------------------------------------------------------------------
-
-class RadioCalPanel extends StatelessWidget {
-  const RadioCalPanel(this.c, {super.key});
-  final BoardController c;
-
-  @override
-  Widget build(BuildContext context) {
-    final r = c.radio;
-    final pwm = c.rcPwm;
-    final names = <int, String>{for (final e in r.sticks.entries) e.value.$1: e.key};
-    final mapParams = c.isPx4
-        ? const {'RC_MAP_ROLL': 'roll', 'RC_MAP_PITCH': 'pitch', 'RC_MAP_THROTTLE': 'throttle', 'RC_MAP_YAW': 'yaw'}
-        : const {'RCMAP_ROLL': 'roll', 'RCMAP_PITCH': 'pitch', 'RCMAP_THROTTLE': 'throttle', 'RCMAP_YAW': 'yaw'};
-    if (r.phase == RadioPhase.idle) {
-      mapParams.forEach((p, stick) {
-        final ch = c.paramInt(p);
-        if (ch > 0) names.putIfAbsent(ch, () => stick);
-      });
-    }
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: [
-        SizedBox(
-          width: 460,
-          child: AppCard(
-            title: 'Guided radio calibration',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Note('Remove the propellers. Switch the transmitter on and keep it close.'),
-                const SizedBox(height: 10),
-                for (final (i, step) in const [
-                  'Center the sticks, throttle down',
-                  'Move each stick when asked',
-                  'Move all sticks and switches to their ends',
-                  'Review and save',
-                ].indexed)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(
-                      children: [
-                        Icon(
-                          r.phase.index > i + 1
-                              ? Icons.check_circle
-                              : (r.phase.index == i + 1 ? Icons.radio_button_checked : Icons.radio_button_off),
-                          size: 16,
-                          color: r.phase.index >= i + 1 ? AppColors.accent : AppColors.off,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(step),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                if (r.message.isNotEmpty)
-                  Text(
-                    r.message,
-                    style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600, fontSize: 14),
-                  ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  children: [
-                    if (r.phase == RadioPhase.idle)
-                      FilledButton.icon(
-                        onPressed: pwm.isEmpty ? null : c.startRadioCal,
-                        icon: const Icon(Icons.play_arrow, size: 16),
-                        label: Text('Start'),
-                      )
-                    else ...[
-                      if (r.phase != RadioPhase.mapping)
-                        FilledButton(
-                          onPressed: c.radioNext,
-                          child: Text(r.phase == RadioPhase.review ? 'Save' : 'Next'),
-                        ),
-                      OutlinedButton(onPressed: c.cancelRadioCal, child: Text('Cancel')),
-                    ],
-                  ],
-                ),
-                if (pwm.isEmpty) ...[const SizedBox(height: 8), const Note('No RC input received')],
-              ],
-            ),
-          ),
-        ),
-        SizedBox(
-          width: 520,
-          child: AppCard(
-            title: 'Channels',
-            badge: c.rc != null && c.rc!.rssi != 255 ? 'RSSI ${c.rc!.rssi}' : null,
-            child: Column(
-              children: [
-                for (final ch in pwm.keys)
-                  PwmBar(
-                    'CH$ch ${names[ch] == null ? '' : names[ch]!}',
-                    pwm[ch],
-                    marks: [
-                      if (r.phase == RadioPhase.idle) ...[
-                        c.paramInt('RC${ch}_MIN'),
-                        c.paramInt('RC${ch}_MAX'),
-                      ] else ...[
-                        ?r.min[ch],
-                        ?r.max[ch],
-                        ?r.trim[ch],
-                      ],
-                    ].where((v) => v > 0).toList(),
-                  ),
-                if (pwm.isEmpty) Muted('No RC_CHANNELS messages'),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 // ---- level, gyro, baro ------------------------------------------------------------------------------
 
-class _SimpleCals extends StatelessWidget {
-  const _SimpleCals(this.c);
+/// One button calibration (level, gyro, baro or airspeed) with its instructions.
+class _SimpleCal extends StatelessWidget {
+  const _SimpleCal(this.c, this.kind, this.text);
   final BoardController c;
-
-  @override
-  Widget build(BuildContext context) {
-    final plane = const {1, 16, 19, 20, 21, 22, 23, 24, 25}.contains(c.heartbeatType);
-    Widget card(String title, String text, CalKind kind) => SizedBox(
-      width: 380,
-      child: AppCard(
-        title: title,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [Muted(text), const SizedBox(height: 12), _CalControls(c, kind, 'Calibrate')],
-        ),
-      ),
-    );
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: [
-        card(
-          'Level horizon',
-          'Place the vehicle in its level flying attitude. Sets the AHRS trim so it hovers without drifting.',
-          CalKind.level,
-        ),
-        card('Gyroscope', 'Keep the vehicle completely still for a few seconds.', CalKind.gyro),
-        card(
-          'Barometer',
-          'Sets the current pressure as ground level. Keep the vehicle still and out of wind.',
-          CalKind.baro,
-        ),
-        // ArduPilot reads param6 = 1 as airspeed calibration only on Plane; on Copter it starts CompassMot
-        if ((c.isArdupilot && plane) || (c.isPx4 && c.params.containsKey('SENS_DPRES_OFF')))
-          card('Airspeed', 'Cover the pitot tube so no wind reaches it, then calibrate.', CalKind.airspeed),
-      ],
-    );
-  }
-}
-
-// ---- ESC --------------------------------------------------------------------------------------------
-
-class _EscCal extends StatelessWidget {
-  const _EscCal(this.c);
-  final BoardController c;
-
-  @override
-  Widget build(BuildContext context) {
-    final pwmType = c.params['MOT_PWM_TYPE']?.round();
-    final digital = pwmType != null && pwmType >= 4;
-    return AppCard(
-      title: 'ESC calibration',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Note(
-            'REMOVE THE PROPELLERS. The motors will spin at full throttle during the calibration.',
-            tone: Tone.err,
-          ),
-          const SizedBox(height: 6),
-          if (digital)
-            Note(
-              'DShot ESCs do not need a throttle calibration (MOT_PWM_TYPE = $pwmType).',
-              tone: Tone.ok,
-              icon: Icons.check,
-            )
-          else
-            Muted(
-              c.isPx4 ? 'Disconnect the battery, press Start and connect the battery when asked.' : 'ArduPilot calibrates the ESCs at the next power-up: press Start, unplug USB and battery, then connect the battery and wait for the ESC tones.',
-            ),
-          const SizedBox(height: 10),
-          ParamForm(c, [
-            PField.one('MOT_PWM_TYPE'),
-            PField.one('MOT_PWM_MIN'),
-            PField.one('MOT_PWM_MAX'),
-            PField.one('ESC_CALIBRATION'),
-          ]),
-          const SizedBox(height: 12),
-          _CalControls(c, CalKind.esc, 'Start ESC calibration'),
-        ],
-      ),
-    );
-  }
-}
-
-// ---- CompassMot -------------------------------------------------------------------------------------
-
-class _CompassMot extends StatelessWidget {
-  const _CompassMot(this.c);
-  final BoardController c;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!c.isArdupilot || metaSetFor(autopilot: 3, mavType: c.heartbeatType ?? -1) != 'ArduCopter') {
-      return AppCard(child: Muted('CompassMot is an ArduCopter feature'));
-    }
-    final cal = c.cal;
-    final mine = cal.kind == CalKind.compassMot;
-    return AppCard(
-      title: 'Guided CompassMot',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Note(
-            'CompassMot spins the motors with the propellers ON. Tie the vehicle down securely and stay clear.',
-            tone: Tone.err,
-          ),
-          const Note(
-            'Needs a current sensor for current-based compensation; otherwise throttle-based compensation is used.',
-          ),
-          const SizedBox(height: 10),
-          Muted('Measures how much the motors disturb the compass and stores the compensation (COMPASS_MOT*).'),
-          const SizedBox(height: 12),
-          if (mine && cal.busy)
-            Wrap(
-              spacing: 24,
-              runSpacing: 10,
-              children: [
-                _Big('Throttle', '${cal.motThrottle.toStringAsFixed(0)} %'),
-                _Big('Current', '${cal.motCurrent.toStringAsFixed(1)} A'),
-                _Big(
-                  'Interference',
-                  '${cal.motInterference.toStringAsFixed(0)} %',
-                  tone: cal.motInterference < 30 ? Tone.ok : (cal.motInterference < 60 ? Tone.warn : Tone.err),
-                ),
-                _Big('Compensation', cal.motCompensation.map((v) => v.toStringAsFixed(1)).join(' / ')),
-              ],
-            ),
-          if (mine && cal.busy) ...[
-            const SizedBox(height: 8),
-            Muted(
-              'Below 30 % is good, 30–60 % is acceptable, above 60 % move the compass away from power wires.',
-              size: 12,
-            ),
-          ],
-          const SizedBox(height: 12),
-          _CalControls(
-            c,
-            CalKind.compassMot,
-            'Start CompassMot',
-            extra: [if (mine && cal.busy) FilledButton(onPressed: c.finishCompassMot, child: Text('Finish'))],
-          ),
-          const SizedBox(height: 10),
-          ParamForm(c, [
-            PField.one('COMPASS_MOTCT'),
-            PField.one('COMPASS_MOT_X'),
-            PField.one('COMPASS_MOT_Y'),
-            PField.one('COMPASS_MOT_Z'),
-          ]),
-        ],
-      ),
-    );
-  }
-}
-
-class _Big extends StatelessWidget {
-  const _Big(this.label, this.value, {this.tone = Tone.none});
-  final String label;
-  final String value;
-  final Tone tone;
+  final CalKind kind;
+  final String text;
 
   @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Muted(label, size: 12),
-      Text(
-        value,
-        style: monoStyle.copyWith(fontSize: 22, fontWeight: FontWeight.w700, color: toneColor(tone)),
-      ),
-    ],
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [Muted(text), const SizedBox(height: 12), _CalControls(c, kind, 'Calibrate')],
   );
 }
-
-// ---- expert -----------------------------------------------------------------------------------------

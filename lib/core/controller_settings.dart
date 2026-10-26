@@ -206,6 +206,13 @@ extension SettingsActions on BoardController {
     setStatus('motor', 'Spinning $what at $motorThrottle% for $motorDuration s…', Tone.accent);
   }
 
+  /// Drives output [output] (1-based) with [pwm] µs; ArduPilot accepts it on outputs without a function
+  /// (SERVOn_FUNCTION = 0) or set to GPIO / RC passthrough by the user.
+  void setOutputPwm(int output, int pwm) {
+    sendCommand(Mav.cmdDoSetServo, [output, pwm, 0, 0, 0, 0, 0], 'output');
+    setStatus('output', 'OUT$output set to $pwm µs', Tone.accent);
+  }
+
   void motorStop() {
     for (var motor = 1; motor <= 12; motor++) {
       sendCommand(Mav.cmdDoMotorTest, [motor, 0, 0, 0, 1, 0]);

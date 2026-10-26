@@ -63,6 +63,13 @@ class FakeBoard implements TransportFactory {
       'ATC_RAT_RLL_P': 0.135,
       'ATC_RAT_PIT_P': 0.135,
       'PILOT_SPEED_UP': 250,
+      'FLTMODE_CH': 5,
+      'FLTMODE1': 0,
+      'FLTMODE2': 2,
+      'FLTMODE3': 5,
+      'FLTMODE4': 6,
+      'FLTMODE5': 9,
+      'FLTMODE6': 3,
     });
     const protocols = [2, 2, 2, 5, 5, 2, -1, 0];
     const bauds = [115, 57, 57, 230, 230, 921, 57, 57];
@@ -82,6 +89,9 @@ class FakeBoard implements TransportFactory {
   final MavParser _parser = MavParser();
   FakeTransport? link;
   bool present = true;
+
+  /// GPS_RAW_INT fix type the board reports; 0 is "No GPS" (nothing connected).
+  int gpsFixType = 3;
 
   /// False keeps the port away after a reboot.
   bool comesBack = true;
@@ -198,7 +208,7 @@ class FakeBoard implements TransportFactory {
     send(MavId.scaledPressure, {'time_boot_ms': ms, 'press_abs': 1008.42, 'temperature': 3712});
     send(MavId.scaledPressure2, {'time_boot_ms': ms, 'press_abs': 1008.61, 'temperature': 3698});
     send(MavId.gpsRawInt, {
-      'fix_type': 3,
+      'fix_type': gpsFixType,
       'lat': 399200000,
       'lon': 328500000,
       'alt': 912000,

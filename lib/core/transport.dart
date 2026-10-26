@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter_libserialport/flutter_libserialport.dart';
@@ -109,9 +110,20 @@ class SerialTransport implements Transport {
   SerialTransport._(this._port, this._reader);
 
   final SerialPort _port;
-  final SerialPortReader _reader;
+  final _PortReader _reader;
   final Completer<void> _closed = Completer();
   final Completer<void> _released = Completer();
+
+  /// Bytes the port has not taken yet; written without blocking so a slow or stuck port never freezes the app.
+  final List<Uint8List> _queue = [];
+  int _queued = 0;
+  Timer? _flushTimer;
+  final Stopwatch _sinceProgress = Stopwatch();
+  Object? _error;
+
+  /// More than this waiting, or no progress for [_stallMs]: the port is treated as broken.
+  static const int _maxQueued = 256 * 1024;
+  static const int _stallMs = 3000;
 
   Future<void> get closed => _closed.future;
   Future<void> get released => _released.future;
@@ -123,8 +135,9 @@ class SerialTransport implements Transport {
       port.dispose();
       throw error ?? const SerialPortError('cannot open port');
     }
+    final config = SerialPortConfig();
     try {
-      final config = SerialPortConfig()
+      config
         ..baudRate = baud
         ..bits = 8
         ..parity = SerialPortParity.none
@@ -134,13 +147,21 @@ class SerialTransport implements Transport {
         ..cts = SerialPortCts.ignore
         ..dsr = SerialPortDsr.ignore
         ..dtr = SerialPortDtr.on;
+    } catch (_) {
+      config.dispose();
+      port.close();
+      port.dispose();
+      rethrow;
+    }
+    try {
+      // from here on the port owns the config and frees it in dispose(): freeing it here as well corrupts the heap
       port.config = config;
     } catch (_) {
       port.close();
       port.dispose();
       rethrow;
     }
-    return SerialTransport._(port, SerialPortReader(port, timeout: 100));
+    return SerialTransport._(port, _PortReader(port.address));
   }
 
   @override
@@ -149,21 +170,157 @@ class SerialTransport implements Transport {
   @override
   void write(Uint8List data) {
     if (_closed.isCompleted) return;
-    if (_port.write(data, timeout: 250) != data.length) {
-      throw SerialPort.lastError ?? const SerialPortError('write timed out');
+    final error = _error;
+    if (error != null) throw error;
+    if (_queue.isEmpty) _sinceProgress.reset();
+    _queue.add(data);
+    _queued += data.length;
+    if (_queued > _maxQueued) {
+      _fail(const SerialPortError('the port does not take data (output buffer full)'));
+      throw _error!;
     }
+    _flush();
+  }
+
+  /// Hands queued bytes to the port as far as it takes them; the rest is retried shortly.
+  void _flush() {
+    _flushTimer = null;
+    if (_closed.isCompleted) return;
+    while (_queue.isNotEmpty) {
+      final head = _queue.first;
+      final int n;
+      try {
+        n = _port.write(head); // non-blocking: returns what the driver accepted
+      } catch (e) {
+        _fail(e);
+        return;
+      }
+      if (n > 0) {
+        _queued -= n;
+        _sinceProgress
+          ..reset()
+          ..start();
+      }
+      if (n < head.length) {
+        _queue[0] = Uint8List.sublistView(head, n);
+        break;
+      }
+      _queue.removeAt(0);
+    }
+    if (_queue.isEmpty) return;
+    if (!_sinceProgress.isRunning) _sinceProgress.start();
+    if (_sinceProgress.elapsedMilliseconds > _stallMs) {
+      _fail(const SerialPortError('the port stopped taking data'));
+      return;
+    }
+    _flushTimer = Timer(const Duration(milliseconds: 2), _flush);
+  }
+
+  /// Remembers the first write error; the next write reports it, which closes the link.
+  void _fail(Object error) {
+    _error ??= error;
+    _queue.clear();
+    _queued = 0;
   }
 
   @override
   Future<void> close() async {
     if (_closed.isCompleted) return _released.future;
     _closed.complete();
-    _reader.close();
+    _flushTimer?.cancel();
+    // what is still queued (e.g. the reboot command sent just before closing) goes out first, briefly blocking
+    if (_error == null) {
+      for (final chunk in _queue) {
+        try {
+          if (_port.write(chunk, timeout: 200) < chunk.length) break;
+        } catch (_) {
+          break;
+        }
+      }
+    }
+    _queue.clear();
+    // the native port is closed and freed only after the reader isolate has stopped using it
+    await _reader.stop();
     _port.close();
-    // the reader isolate may still be inside a libserialport call; it sees the closed port within its
-    // poll timeout, only then the native port may be freed
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    _port.dispose();
+    _port.dispose(); // also frees the config
     _released.complete();
+  }
+}
+
+/// Reads a serial port on its own isolate. Unlike the library's SerialPortReader it waits until the isolate has
+/// really started and stopped, so the port is never freed while the isolate can still touch it.
+class _PortReader {
+  _PortReader(int address) {
+    _data.listen((message) {
+      if (_controller.isClosed) return;
+      if (message is Uint8List) {
+        _controller.add(message);
+      } else {
+        _controller.addError(SerialPortError('$message'));
+      }
+    });
+    _exit.listen((_) => _finish());
+    _spawned = Isolate.spawn(_run, (address, _data.sendPort), onExit: _exit.sendPort, debugName: 'serial reader')
+        .then<Isolate?>(
+          (isolate) => isolate,
+          onError: (Object e) {
+            _finish();
+            return null;
+          },
+        );
+  }
+
+  final StreamController<Uint8List> _controller = StreamController();
+  final ReceivePort _data = ReceivePort();
+  final ReceivePort _exit = ReceivePort();
+  final Completer<void> _stopped = Completer();
+  late final Future<Isolate?> _spawned;
+
+  Stream<Uint8List> get stream => _controller.stream;
+
+  void _finish() {
+    if (_stopped.isCompleted) return;
+    _stopped.complete();
+    _data.close();
+    _exit.close();
+    if (!_controller.isClosed) unawaited(_controller.close());
+  }
+
+  /// Stops the isolate and waits until it has exited.
+  Future<void> stop() async {
+    final isolate = await _spawned;
+    isolate?.kill(priority: Isolate.immediate);
+    // a kill takes effect when the isolate returns from its current libserialport call (at most ~50 ms)
+    await _stopped.future.timeout(const Duration(seconds: 2), onTimeout: () {});
+  }
+
+  static void _run((int, SendPort) args) {
+    final (address, out) = args;
+    final port = SerialPort.fromAddress(address);
+    while (true) {
+      Uint8List data;
+      try {
+        // wait for the first byte only, so a short answer (e.g. the bootloader's 2 byte OK after every chunk)
+        // comes through at once; waiting for a full buffer would cost the whole timeout per answer
+        data = port.read(1, timeout: 50);
+        if (data.isNotEmpty) {
+          final more = port.bytesAvailable;
+          if (more > 0) {
+            final rest = port.read(more); // non-blocking: only what is already there
+            data = Uint8List.fromList([...data, ...rest]);
+          }
+        }
+      } catch (e) {
+        out.send('$e');
+        return;
+      }
+      if (data.isNotEmpty) {
+        out.send(data);
+      } else if (port.bytesAvailable < 0) {
+        // the device is gone (unplugged or rebooting)
+        out.send(SerialPort.lastError?.message ?? 'device disconnected');
+        return;
+      }
+    }
   }
 }

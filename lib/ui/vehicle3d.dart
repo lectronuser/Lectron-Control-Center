@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'theme.dart';
@@ -32,10 +33,13 @@ class Vehicle3D extends StatelessWidget {
   final List<(double, double, bool)>? motors;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: size,
-    height: size,
-    child: CustomPaint(painter: _VehiclePainter(roll, pitch, yaw, plane, highlight, motorLabels, motors)),
+  // its own layer: the page around it rebuilds with every update, the model is only redrawn when it moves
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _VehiclePainter(roll, pitch, yaw, plane, highlight, motorLabels, motors)),
+    ),
   );
 }
 
@@ -418,29 +422,41 @@ class _VehiclePainter extends CustomPainter {
       old.yaw != yaw ||
       old.highlight != highlight ||
       old.plane != plane ||
-      old.labels != labels ||
-      old.motors != motors;
+      // the lists are rebuilt on every frame, so compare their contents
+      !listEquals(old.labels, labels) ||
+      !listEquals(old.motors, motors);
 }
 
 /// Artificial horizon with the heading underneath.
 class Horizon extends StatelessWidget {
-  const Horizon({super.key, required this.roll, required this.pitch, required this.yaw, this.size = 180});
+  const Horizon({
+    super.key,
+    required this.roll,
+    required this.pitch,
+    required this.yaw,
+    this.size = 180,
+    this.heading = true,
+  });
   final double roll;
   final double pitch;
   final double yaw;
   final double size;
 
+  /// Writes the heading at the bottom; off when a compass shows it next to the horizon.
+  final bool heading;
+
   @override
   Widget build(BuildContext context) => SizedBox(
     width: size,
     height: size,
-    child: CustomPaint(painter: _HorizonPainter(roll, pitch, yaw)),
+    child: CustomPaint(painter: _HorizonPainter(roll, pitch, yaw, heading)),
   );
 }
 
 class _HorizonPainter extends CustomPainter {
-  _HorizonPainter(this.roll, this.pitch, this.yaw);
+  _HorizonPainter(this.roll, this.pitch, this.yaw, this.heading);
   final double roll, pitch, yaw;
+  final bool heading;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -480,6 +496,7 @@ class _HorizonPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
+    if (!heading) return;
     final tp = TextPainter(
       text: TextSpan(
         text: '${yaw.round() % 360}°',
@@ -491,7 +508,8 @@ class _HorizonPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_HorizonPainter old) => old.roll != roll || old.pitch != pitch || old.yaw != yaw;
+  bool shouldRepaint(_HorizonPainter old) =>
+      old.roll != roll || old.pitch != pitch || old.yaw != yaw || old.heading != heading;
 }
 
 /// Heading on a compass rose: N, E, S, W fixed, the arrow turns with the yaw (degrees).

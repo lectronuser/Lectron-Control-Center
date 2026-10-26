@@ -72,6 +72,7 @@ abstract final class Mav {
   static const int accelcalSuccess = 16777215;
   static const int accelcalFailed = 16777216;
   static const int cmdDoMotorTest = 209;
+  static const int cmdDoSetServo = 183;
   static const int cmdComponentArmDisarm = 400;
   static const int cmdRunPrearmChecks = 401;
   static const int cmdPreflightStorage = 245;

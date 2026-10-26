@@ -16,7 +16,8 @@ VERSION="$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml)"
 OUTPUT="build/LectronControlCenter-${VERSION}-x86_64.AppImage"
 
 if [[ "${1:-}" != "--no-build" ]]; then
-  flutter build linux --release
+  # the whole icon font: the icon tree shaker kept a stale subset between builds and new icons came out blank
+  flutter build linux --release --no-tree-shake-icons
 fi
 [[ -x "$BUNDLE/$BINARY" ]] || { echo "No release bundle in $BUNDLE" >&2; exit 1; }
 
@@ -24,25 +25,23 @@ fi
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR"
 cp -r "$BUNDLE"/. "$APPDIR/"
-cp assets/icon/app_icon.png "$APPDIR/$APP_ID.png"
+cp "linux/packaging/icons/hicolor/256x256/apps/$APP_ID.png" "$APPDIR/$APP_ID.png"
 ln -s "$APP_ID.png" "$APPDIR/.DirIcon"
 
-cat > "$APPDIR/$APP_ID.desktop" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=Lectron Control Center
-GenericName=Lectron Pi5-H7 board test
-Comment=Board test, configuration and PDF test report for the Lectron Pi5-H7
-Exec=$BINARY
-Icon=$APP_ID
-StartupWMClass=$APP_ID
-Categories=Development;Electronics;
-Terminal=false
-DESKTOP
+# the same launcher as tool/install_linux_desktop.sh installs; inside the AppImage it runs the bundled binary
+sed "s|@EXEC@|$BINARY|" "linux/packaging/$APP_ID.desktop" > "$APPDIR/$APP_ID.desktop"
 
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
+# started from a snap (e.g. the VS Code terminal) the snap's GTK settings leak in and crash GTK at start
+case "${GTK_PATH:-}${GTK_EXE_PREFIX:-}${GIO_MODULE_DIR:-}${GSETTINGS_SCHEMA_DIR:-}" in
+  *snap*)
+    unset GTK_PATH GTK_EXE_PREFIX GTK_IM_MODULE_FILE GIO_MODULE_DIR GSETTINGS_SCHEMA_DIR
+    XDG_DATA_DIRS=/usr/local/share:/usr/share
+    export XDG_DATA_DIRS
+    ;;
+esac
 exec "$HERE/lectron_control_center" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"

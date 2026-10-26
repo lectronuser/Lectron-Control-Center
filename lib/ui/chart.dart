@@ -4,6 +4,9 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+
+import 'i18n.dart';
+
 import 'package:flutter/rendering.dart';
 
 import '../core/models.dart';
@@ -155,8 +158,8 @@ class _LineChartState extends State<LineChart> {
               Expanded(
                 child: Text(widget.title!, style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
-              TextButton(onPressed: () => _exportPng(context), child: const Text('PNG')),
-              TextButton(onPressed: widget.lines.isEmpty ? null : _exportCsv, child: const Text('CSV')),
+              TextButton(onPressed: () => _exportPng(context), child: Text(tr('PNG'))),
+              TextButton(onPressed: widget.lines.isEmpty ? null : _exportCsv, child: Text(tr('CSV'))),
             ],
           ),
         SizedBox(

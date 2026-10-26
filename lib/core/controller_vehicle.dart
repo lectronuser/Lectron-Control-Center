@@ -16,30 +16,6 @@ class MsgStat {
   int _windowCount = 0;
 }
 
-/// A value pinned to the inspection dock: `MSG.field` (or `MSG.field[i]`) or a parameter name.
-class WatchPin {
-  WatchPin(this.key);
-  final String key;
-  final List<(double t, double v)> samples = [];
-  double? min;
-  double? max;
-
-  bool get isMessage => key.contains('.');
-
-  void add(double t, double v) {
-    if (!v.isFinite) return;
-    if (samples.isNotEmpty && t - samples.last.$1 < watchMinDtS) return;
-    samples.add((t, v));
-    while (samples.isNotEmpty && t - samples.first.$1 > watchWindowS) {
-      samples.removeAt(0);
-    }
-    min = min == null ? v : math.min(min!, v);
-    max = max == null ? v : math.max(max!, v);
-  }
-
-  double? get value => samples.isEmpty ? null : samples.last.$2;
-}
-
 /// A link used before, offered under "Recent".
 class RecentLink {
   const RecentLink(this.id, this.baud);
@@ -47,8 +23,8 @@ class RecentLink {
   final int baud;
 }
 
-/// Vehicle-wide state used by every page: message store, PreArm reasons, top bar chips, staged parameters,
-/// the dock and auto-connect.
+/// Vehicle-wide state used by every page: message store, PreArm reasons, top bar chips, staged parameters and
+/// auto-connect.
 extension VehicleState on BoardController {
   // ---- messages ---------------------------------------------------------------------------------
 
@@ -72,13 +48,6 @@ extension VehicleState on BoardController {
         stat._windowStart = now;
         stat._windowCount = 0;
       }
-    }
-    for (final pin in watchPins) {
-      if (!pin.isMessage) continue;
-      final dot = pin.key.indexOf('.');
-      if (pin.key.substring(0, dot) != m.type) continue;
-      final v = messageField(m, pin.key.substring(dot + 1));
-      if (v != null) pin.add(now, v);
     }
     for (final listener in List.of(messageListeners)) {
       try {
@@ -380,41 +349,6 @@ extension VehicleState on BoardController {
     _changed();
   }
 
-  // ---- dock -------------------------------------------------------------------------------------
-
-  void pin(String key) {
-    key = key.trim();
-    if (key.isEmpty || watchPins.any((p) => p.key == key)) return;
-    watchPins.add(WatchPin(key));
-    _savePins();
-    _changed();
-  }
-
-  void unpin(String key) {
-    watchPins.removeWhere((p) => p.key == key);
-    _savePins();
-    _changed();
-  }
-
-  bool isPinned(String key) => watchPins.any((p) => p.key == key);
-
-  void _savePins() => storage.put('pins', [for (final p in watchPins) p.key].join('\n'));
-
-  void _samplePinnedParams() {
-    final now = mono();
-    for (final pin in watchPins) {
-      if (pin.isMessage) continue;
-      final v = params[pin.key];
-      if (v != null) pin.add(now, v.toDouble());
-    }
-  }
-
-  void toggleDock() {
-    dockOpen = !dockOpen;
-    storage.put('dock', dockOpen);
-    _changed();
-  }
-
   // ---- links ------------------------------------------------------------------------------------
 
   void _rememberLink(String id, int baud) {
@@ -450,6 +384,71 @@ extension VehicleState on BoardController {
     selectedPort = _preferredPort = pick.id;
     notify('Auto-connect: ${pick.label}');
     unawaited(_openConnection(pick.id, selectedBaud));
+  }
+
+  // ---- language ---------------------------------------------------------------------------------
+
+  void setLanguage(String code) {
+    language = code;
+    storage.put('language', code);
+    _changed();
+  }
+
+  // ---- PX4 shell ------------------------------------------------------------------------------------
+
+  static const int _shellDevice = 10; // SERIAL_CONTROL_DEV_SHELL
+  static const int _shellFlags = 2 | 4; // RESPOND | EXCLUSIVE
+
+  /// Sends [text] to the PX4 shell, in pieces of the 70 bytes a SERIAL_CONTROL message carries.
+  void shellSend(String text) {
+    if (target == null || !isPx4) return;
+    final bytes = utf8.encode(text);
+    for (var i = 0; i < bytes.length; i += 70) {
+      final part = bytes.sublist(i, math.min(i + 70, bytes.length));
+      sendMessage(MavId.serialControl, {
+        'device': _shellDevice,
+        'flags': _shellFlags,
+        'timeout': 0,
+        'baudrate': 0,
+        'count': part.length,
+        'data': [...part, ...List.filled(70 - part.length, 0)],
+      });
+    }
+  }
+
+  /// An empty message asks the shell for the output it has collected.
+  void _shellPoll() {
+    if (target == null || !isPx4) return;
+    sendMessage(MavId.serialControl, {
+      'device': _shellDevice,
+      'flags': _shellFlags,
+      'timeout': 0,
+      'baudrate': 0,
+      'count': 0,
+      'data': List.filled(70, 0),
+    });
+  }
+
+  void _shellMessage(MavMessage m) {
+    if (m.type != 'SERIAL_CONTROL' || m.i('device') != _shellDevice) return;
+    final count = m.i('count').clamp(0, 70);
+    if (count == 0) return;
+    final data = [for (final v in m.list('data').take(count)) v.toInt() & 0xFF];
+    final text = utf8
+        .decode(data, allowMalformed: true)
+        // colours and cursor movements of the NSH console are of no use here
+        .replaceAll(RegExp(r'\x1B\[[0-9;?]*[A-Za-z]'), '')
+        .replaceAll('\r', '');
+    shellText += text;
+    if (shellText.length > BoardController.shellMax) {
+      shellText = shellText.substring(shellText.length - BoardController.shellMax);
+    }
+    _changed();
+  }
+
+  void shellClear() {
+    shellText = '';
+    _changed();
   }
 }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../board/board_data.dart';
 import '../../core/board_controller.dart';
 import '../shell.dart';
@@ -7,85 +9,25 @@ import '../theme.dart';
 import '../widgets.dart';
 import '../banners.dart';
 import 'osd_page.dart';
-import 'safety_page.dart';
-import '../param_form.dart';
-import '../../core/recipes.dart';
-import '../../core/models.dart';
 
-const List<String> _tabs = ['Network & Ports', 'Safety & Failsafes', 'Port presets', 'OSD Layout'];
-
-/// Board settings: Ethernet and serial ports, failsafes, ready-made port setups and the OSD layout.
-class SettingsPage extends StatefulWidget {
+/// Board settings: Ethernet, serial ports and the OSD layout on one page.
+class SettingsPage extends StatelessWidget {
   const SettingsPage(this.c, {super.key});
   final BoardController c;
-
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  int _tab = 0;
-  final Map<String, int> _presetPort = {};
-
-  BoardController get c => widget.c;
 
   @override
   Widget build(BuildContext context) {
     return PageFrame(
       title: 'Board Settings',
-      subtitle: 'Ethernet and serial ports, failsafes, port presets and the OSD layout',
+      subtitle: 'Ethernet, serial ports and the OSD layout',
       actions: [
         Muted(c.paramSummary),
         LinkButton(c, 'Read Parameters', c.startParamFetch, icon: Icons.refresh),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IssueBanners(c, only: const {AppPage.settings}),
-          ChangedSinceBoot(c, AppPage.settings),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<int>(
-              showSelectedIcon: false,
-              segments: [for (var i = 0; i < _tabs.length; i++) ButtonSegment(value: i, label: Text(_tabs[i]))],
-              selected: {_tab},
-              onSelectionChanged: (s) => setState(() => _tab = s.first),
-            ),
-          ),
-          const SizedBox(height: 16),
-          switch (_tab) {
-            0 => _networkAndPorts(),
-            1 => SafetyView(c),
-            2 => _presets(),
-            _ => OsdEditor(c),
-          },
-        ],
+        children: [ChangedSinceBoot(c, AppPage.settings), _networkAndPorts(), SectionTitle('OSD Layout'), OsdEditor(c)],
       ),
-    );
-  }
-
-  /// Ready-made setups for the serial and CAN ports; the values are staged and written with Write.
-  Widget _presets() {
-    final fw = c.isPx4 ? 'px4' : 'ardupilot';
-    final presets = [
-      for (final r in builtinRecipes)
-        if (c.target == null || r.firmware == 'any' || r.firmware == fw) r,
-    ];
-    return LayoutBuilder(
-      builder: (context, box) {
-        final width = box.maxWidth < 1000 ? box.maxWidth : (box.maxWidth - 16) / 2;
-        return Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            for (final r in presets)
-              SizedBox(
-                width: width,
-                child: _RecipeCard(c, r, port: _presetPort[r.id], onPort: (p) => setState(() => _presetPort[r.id] = p)),
-              ),
-          ],
-        );
-      },
     );
   }
 
@@ -96,7 +38,7 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         Padding(
           padding: EdgeInsets.only(bottom: 10),
-          child: Text('Ethernet', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          child: Text(tr('Ethernet'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
         ),
         LayoutBuilder(
           builder: (context, box) {
@@ -237,89 +179,4 @@ class _SettingsPageState extends State<SettingsPage> {
       ],
     ),
   );
-}
-
-class _RecipeCard extends StatelessWidget {
-  const _RecipeCard(this.c, this.recipe, {required this.port, required this.onPort});
-  final BoardController c;
-  final Recipe recipe;
-  final int? port;
-  final ValueChanged<int> onPort;
-
-  @override
-  Widget build(BuildContext context) {
-    final ports = [
-      for (var n = 1; n <= 9; n++)
-        if (c.params.containsKey('SERIAL${n}_PROTOCOL')) n,
-    ];
-    final chosen = recipe.serial ? (port ?? (ports.isEmpty ? null : ports.first)) : null;
-    final values = recipe.resolve(port: chosen);
-    final present = {
-      for (final e in values.entries)
-        if (c.params.containsKey(e.key)) e.key: e.value,
-    };
-    final missing = [
-      for (final k in values.keys)
-        if (c.fullLoaded && !c.params.containsKey(k)) k,
-    ];
-    return AppCard(
-      title: recipe.title,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (recipe.description.isNotEmpty) Text(recipe.description, style: const TextStyle(color: AppColors.muted)),
-          if (recipe.serial) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Muted('Serial port'),
-                const SizedBox(width: 10),
-                SizedBox(
-                  width: 160,
-                  child: EnumDropdown(
-                    options: {for (final n in ports) n: 'SERIAL$n'},
-                    value: chosen ?? 1,
-                    enabled: ports.isNotEmpty,
-                    onChanged: onPort,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 10),
-          for (final e in values.entries)
-            if (!missing.contains(e.key))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 1.5),
-                child: Row(
-                  children: [
-                    SizedBox(width: 190, child: Text(e.key, style: monoStyle.copyWith(fontSize: 12))),
-                    Expanded(
-                      child: Text(
-                        [
-                          formatParam(e.value),
-                          if (c.metaFor(e.key)?.values[e.value.round()] case final label?) '($label)',
-                        ].join(' '),
-                        style: monoStyle.copyWith(
-                          fontSize: 12,
-                          color: c.params[e.key] != null && sameParamValue(c.params[e.key]!, e.value)
-                              ? AppColors.ok
-                              : AppColors.text,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          if (missing.isNotEmpty) Muted('Not on this vehicle, skipped: ${missing.join(', ')}', size: 11.5),
-          for (final n in recipe.notes) Note(n, tone: Tone.muted),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: StageButton(c, 'Stage these values', present, icon: Icons.playlist_add_check),
-          ),
-        ],
-      ),
-    );
-  }
 }

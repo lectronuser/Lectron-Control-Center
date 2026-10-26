@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lectron Control Center
+GenericName=Board test, firmware and control
+Comment=Testing, firmware flashing and control of Lectron flight controller boards
+Exec=@EXEC@
+Icon=com.lectron.lectron_control
+StartupWMClass=com.lectron.lectron_control
+Categories=Development;Electronics;
+Terminal=false

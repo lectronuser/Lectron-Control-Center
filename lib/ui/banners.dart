@@ -1,38 +1,105 @@
 import 'package:flutter/material.dart';
 
+import 'i18n.dart';
+
 import '../core/board_controller.dart';
 import '../core/models.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-/// Yellow banners with the vehicle's missing sensors and setup steps; [only] limits them to some pages' fixes.
-class IssueBanners extends StatelessWidget {
-  const IssueBanners(this.c, {super.key, this.only});
+/// Always-visible button in the top bar with the number of open issues: missing sensors, setup steps and
+/// PreArm reasons. It opens the list.
+class IssuesButton extends StatelessWidget {
+  const IssuesButton(this.c, {super.key});
   final BoardController c;
-  final Set<AppPage>? only;
 
   @override
   Widget build(BuildContext context) {
-    if (!(c.storage.getBool('banners') ?? true)) return const SizedBox.shrink();
-    final issues = [
-      for (final i in c.vehicleIssues())
-        if (only == null || (i.fix != null && only!.contains(i.fix)) || (only!.isEmpty && i.fix == null)) i,
-    ];
-    if (issues.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [for (final issue in issues) _Banner(c, issue)],
+    final issues = c.target == null ? const <VehicleIssue>[] : c.vehicleIssues();
+    final prearm = c.target == null ? const <String>[] : c.prearmReasons;
+    final count = issues.length + prearm.length;
+    final error = prearm.isNotEmpty || issues.any((i) => i.tone == Tone.err);
+    final color = count == 0 ? AppColors.ok : (error ? AppColors.err : AppColors.warn);
+    return Tooltip(
+      message: tr('Missing sensors, setup steps and arming checks'),
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color.withValues(alpha: 0.6)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        onPressed: c.target == null ? null : () => showIssuesDialog(context, c),
+        icon: Icon(count == 0 ? Icons.check_circle_outline : Icons.warning_amber, size: 16),
+        label: Text(count == 0 ? tr('No issues') : '$count ${tr(count == 1 ? 'issue' : 'issues')}'),
       ),
     );
   }
 }
 
+/// The open issues and the PreArm reasons in one list, kept up to date while it is open.
+Future<void> showIssuesDialog(BuildContext context, BoardController c) => showDialog<void>(
+  context: context,
+  builder: (context) => ListenableBuilder(
+    listenable: c,
+    builder: (context, _) {
+      final issues = c.vehicleIssues();
+      final reasons = c.prearmReasons;
+      return AlertDialog(
+        title: Text(tr('Issues'), style: Theme.of(context).textTheme.titleMedium),
+        content: SizedBox(
+          width: 640,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SectionTitle('Setup'),
+                if (issues.isEmpty) Muted('Nothing missing.'),
+                for (final issue in issues) _Banner(c, issue, onOpen: () => Navigator.pop(context)),
+                SectionTitle('Arming checks'),
+                if (reasons.isEmpty)
+                  Muted(
+                    c.prearmHealthy == true
+                        ? 'No failing checks reported. The vehicle is ready to arm.'
+                        : 'No failing checks reported yet. Run the checks to ask the vehicle.',
+                  ),
+                for (final r in reasons)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.error_outline, size: 16, color: AppColors.err),
+                        const SizedBox(width: 8),
+                        Expanded(child: SelectableText(r)),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                Muted('PreArm reasons are collected from the messages of the last minute.', size: 12),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          if (c.isArdupilot)
+            OutlinedButton.icon(
+              onPressed: c.runPrearmChecks,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: Text(tr('Run checks')),
+            ),
+          FilledButton(onPressed: () => Navigator.pop(context), child: Text(tr('Close'))),
+        ],
+      );
+    },
+  ),
+);
+
 class _Banner extends StatelessWidget {
-  const _Banner(this.c, this.issue);
+  const _Banner(this.c, this.issue, {required this.onOpen});
   final BoardController c;
   final VehicleIssue issue;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -53,15 +120,18 @@ class _Banner extends StatelessWidget {
             child: Text(issue.text, style: TextStyle(color: color, fontSize: 13)),
           ),
           if (issue.removable)
-            TextButton(onPressed: () => c.removedOnPurpose(issue.key), child: Text('Removed on purpose')),
-          if (issue.fix != null && issue.fix != c.page)
+            TextButton(onPressed: () => c.removedOnPurpose(issue.key), child: Text(tr('Removed on purpose'))),
+          if (issue.fix != null)
             OutlinedButton(
               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-              onPressed: () => c.showPage(issue.fix!),
-              child: Text(issue.action ?? 'Open'),
+              onPressed: () {
+                onOpen();
+                c.showPage(issue.fix!);
+              },
+              child: Text(tr(issue.action ?? 'Open')),
             ),
           IconButton(
-            tooltip: 'Hide for this session',
+            tooltip: tr('Hide for this session'),
             onPressed: () => c.dismissIssue(issue.key),
             icon: const Icon(Icons.close, size: 16),
           ),
@@ -95,11 +165,11 @@ class ChangedSinceBoot extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Changed since boot: ${changed.map((e) => '${e.$1} ${e.$2 == null ? '' : '(${formatParam(e.$2!)} → ${formatParam(c.params[e.$1] ?? 0)})'}').join(', ')}',
+              '${tr('Changed since boot:')} ${changed.map((e) => '${e.$1} ${e.$2 == null ? '' : '(${formatParam(e.$2!)} → ${formatParam(c.params[e.$1] ?? 0)})'}').join(', ')}',
               style: const TextStyle(color: AppColors.warn, fontSize: 12.5),
             ),
           ),
-          TextButton(onPressed: () => c.revertToBoot(page), child: Text('Revert to boot values')),
+          TextButton(onPressed: () => c.revertToBoot(page), child: Text(tr('Revert to boot values'))),
         ],
       ),
     );

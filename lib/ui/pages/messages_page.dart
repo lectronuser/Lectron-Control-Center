@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../../mavlink/mavlink.dart';
@@ -63,9 +65,9 @@ class _MessagesPageState extends State<MessagesPage> {
         SegmentedButton<int>(
           showSelectedIcon: false,
           segments: [
-            ButtonSegment(value: Mav.severityDebug, label: Text('All')),
-            ButtonSegment(value: Mav.severityWarning, label: Text('Warnings')),
-            ButtonSegment(value: Mav.severityError, label: Text('Errors')),
+            ButtonSegment(value: Mav.severityDebug, label: Text(tr('All'))),
+            ButtonSegment(value: Mav.severityWarning, label: Text(tr('Warnings'))),
+            ButtonSegment(value: Mav.severityError, label: Text(tr('Errors'))),
           ],
           selected: {_maxSeverity},
           onSelectionChanged: (s) => setState(() => _maxSeverity = s.first),
@@ -73,12 +75,12 @@ class _MessagesPageState extends State<MessagesPage> {
         OutlinedButton.icon(
           onPressed: entries.isEmpty ? null : () => _export(entries),
           icon: const Icon(Icons.save_alt, size: 16),
-          label: Text('Export…'),
+          label: Text(tr('Export…')),
         ),
         OutlinedButton.icon(
           onPressed: c.statusLog.isEmpty ? null : c.clearStatusLog,
           icon: const Icon(Icons.delete_outline, size: 16),
-          label: Text('Clear'),
+          label: Text(tr('Clear')),
         ),
       ],
       child: AppCard(
@@ -90,7 +92,7 @@ class _MessagesPageState extends State<MessagesPage> {
               TextField(
                 onChanged: (t) => setState(() => _search = t),
                 decoration: InputDecoration(
-                  hintText: 'Filter messages',
+                  hintText: tr('Filter messages'),
                   prefixIcon: Icon(Icons.search, size: 18),
                   prefixIconConstraints: BoxConstraints(minWidth: 38),
                 ),
@@ -138,7 +140,7 @@ class _MessagesPageState extends State<MessagesPage> {
                         openExternally(logDir.path);
                       },
                       icon: const Icon(Icons.folder_open, size: 16),
-                      label: Text('Open Folder'),
+                      label: Text(tr('Open Folder')),
                     ),
                 ],
               ),

@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../i18n.dart';
+
 import '../../board/board_data.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
@@ -117,15 +119,15 @@ class _SummaryCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: c.resetTests,
                 icon: const Icon(Icons.restart_alt, size: 16),
-                label: Text('Reset Results'),
+                label: Text(tr('Reset Results')),
               ),
               const SizedBox(width: 10),
               Tooltip(
-                message: 'Put back the port parameters changed by the tests (reboots the board)',
+                message: tr('Put back the port parameters changed by the tests (reboots the board)'),
                 child: OutlinedButton.icon(
                   onPressed: c.connected ? c.restorePorts : null,
                   icon: const Icon(Icons.settings_backup_restore, size: 16),
-                  label: Text(c.portBackup.isEmpty ? 'Restore Ports' : 'Restore Ports (${c.portBackup.length})'),
+                  label: Text(tr(c.portBackup.isEmpty ? 'Restore Ports' : 'Restore Ports (${c.portBackup.length})')),
                 ),
               ),
             ],
@@ -172,7 +174,7 @@ class _SummaryCard extends StatelessWidget {
               Muted('Device for UART ports'),
               SizedBox(width: 230, child: _DeviceDropdown(telemTestDevices, c.telemDevice, c.setTelemDevice)),
               Tooltip(
-                message: 'TELEM3 (USART2) is bridged to the CM5 and has no FMU connector by default',
+                message: tr('TELEM3 (USART2) is bridged to the CM5 and has no FMU connector by default'),
                 child: CheckRow('TELEM3 connector fitted', c.telem3Fitted, c.setTelem3Fitted),
               ),
             ],
@@ -260,7 +262,7 @@ class _ConnectorCard extends StatelessWidget {
                 TextButton.icon(
                   onPressed: onPinout,
                   icon: const Icon(Icons.pin_outlined, size: 16),
-                  label: Text('Pinout'),
+                  label: Text(tr('Pinout')),
                 ),
               ],
             ),
@@ -323,17 +325,17 @@ class _TestRow extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: Text('Test'),
+                child: Text(tr('Test')),
               ),
               const SizedBox(width: 4),
               IconButton(
-                tooltip: 'Mark PASS',
+                tooltip: tr('Mark PASS'),
                 onPressed: enabled ? () => c.markTest(spec.key, pass: true) : null,
                 icon: const Icon(Icons.check_circle_outline, size: 20),
                 color: AppColors.ok,
               ),
               IconButton(
-                tooltip: 'Mark FAIL',
+                tooltip: tr('Mark FAIL'),
                 onPressed: enabled ? () => c.markTest(spec.key, pass: false) : null,
                 icon: const Icon(Icons.highlight_off, size: 20),
                 color: AppColors.err,
@@ -470,7 +472,7 @@ class _ReportCard extends StatelessWidget {
           FilledButton.icon(
             onPressed: c.reportBusy ? null : () => _create(context),
             icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
-            label: Text('Create Report'),
+            label: Text(tr('Create Report')),
           ),
           if (c.reportBusy) ...[
             const SizedBox(height: 10),
@@ -488,7 +490,7 @@ class _ReportCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => openExternally(saved),
                     icon: const Icon(Icons.open_in_new, size: 16),
-                    label: Text('Open PDF'),
+                    label: Text(tr('Open PDF')),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -496,7 +498,7 @@ class _ReportCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => openExternally(parentDir(saved)),
                     icon: const Icon(Icons.folder_open, size: 16),
-                    label: Text('Show Folder'),
+                    label: Text(tr('Show Folder')),
                   ),
                 ),
               ],
@@ -563,7 +565,7 @@ class _ReportDialogState extends State<_ReportDialog> {
       ),
     );
     return AlertDialog(
-      title: Text('Test Report', style: Theme.of(context).textTheme.titleMedium),
+      title: Text(tr('Test Report'), style: Theme.of(context).textTheme.titleMedium),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -581,8 +583,8 @@ class _ReportDialogState extends State<_ReportDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
-        FilledButton(onPressed: _valid ? _submit : null, child: Text('Create PDF')),
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
+        FilledButton(onPressed: _valid ? _submit : null, child: Text(tr('Create PDF'))),
       ],
     );
   }
