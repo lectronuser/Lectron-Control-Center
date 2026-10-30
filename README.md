@@ -38,6 +38,13 @@ env -u GTK_PATH -u GIO_MODULE_DIR -u GTK_EXE_PREFIX -u GTK_IM_MODULE_FILE GSETTI
 
 `tool/build_appimage.sh` packages a Linux AppImage.
 
+GitHub Actions builds the release packages (Actions tab → Run workflow, or push a tag like `v1.0.0` to attach them to
+the release):
+
+- `Linux build` (`.github/workflows/linux.yml`): the AppImage on Ubuntu 22.04, so it runs on 22.04 and 24.04; the
+  run checks the glibc it needs and starts it on a clean 24.04.
+- `Windows build` (`.github/workflows/windows.yml`): the Windows app as a zip (exe, DLLs and data folder).
+
 `tool/install_linux_desktop.sh` adds the launcher and the "L" icon for the current user, so the dock and the app grid
 show it (GNOME on Wayland takes the icon from the launcher, not from the window). `tool/gen_icons.py` regenerates
 the icons of every platform from the Lectron logo.
