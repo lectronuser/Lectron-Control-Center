@@ -19,10 +19,11 @@ import 'pages/mission_computer_page.dart';
 import 'pages/outputs_page.dart';
 import 'pages/params_page.dart';
 import 'pages/receiver_page.dart';
-import 'pages/settings_page.dart';
 import 'pages/terminal_page.dart';
 import 'pages/test_page.dart';
 import 'search.dart';
+import 'ssh_login.dart';
+import '../core/mission_link.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -116,7 +117,6 @@ Widget _page(BoardController c) => switch (c.page) {
   AppPage.params => ParamsPage(c),
   AppPage.board => BoardPage(c),
   AppPage.test => TestPage(c),
-  AppPage.settings => SettingsPage(c),
   AppPage.app => AppSettingsPage(c),
 };
 
@@ -143,84 +143,116 @@ class _TopBar extends StatelessWidget {
         children: [
           Image.asset('assets/icon/app_icon.png', width: 30, height: 30, filterQuality: FilterQuality.medium),
           const SizedBox(width: 10),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(productName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              Muted('Board test, firmware and control', size: 11),
-            ],
+          // the name gives way on narrow windows before the connection controls do
+          Flexible(
+            flex: 2,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  productName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  tr('Board test, firmware and control'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                ),
+              ],
+            ),
           ),
           const Spacer(),
-          Flexible(
-            flex: 6,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: _Picker<String?>(
-                value: items.containsKey(c.selectedPort) ? c.selectedPort : null,
-                hint: 'No ports found',
-                enabled: !busy,
-                items: items,
-                onChanged: c.selectPort,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
+          // which device the connection area is about
           SizedBox(
-            width: 104,
+            width: 156,
             child: Tooltip(
-              message: tr('Baud rate'),
-              child: _Picker<int>(
-                value: c.selectedBaud,
-                enabled: !busy,
-                items: {for (final b in baudRates) b: '$b'},
-                onChanged: (b) => c.selectBaud(b ?? defaultBaud),
+              message: tr('Device to connect to'),
+              child: _Picker<bool>(
+                value: c.missionMode,
+                // both links stay up in the background, so the device can be switched any time
+                items: {false: tr('Flight Controller'), true: tr('Mission Computer')},
+                onChanged: (v) => c.setMissionMode(v ?? false),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          SizedBox(
-            width: 152,
-            child: FilledButton.icon(
-              style: busy ? FilledButton.styleFrom(backgroundColor: AppColors.err) : null,
-              onPressed: busy ? () => _disconnect(context, c) : (c.selectedPort != null ? c.toggleConnection : null),
-              icon: Icon(busy ? Icons.link_off : Icons.usb, size: 16),
-              label: Text(tr(c.connected ? 'Disconnect' : (c.job != null ? 'Cancel' : 'Connect'))),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Tooltip(
-            message: tr('Reboot the board; it reconnects by itself'),
-            child: OutlinedButton.icon(
-              onPressed: c.target != null && c.job == null ? c.rebootBoard : null,
-              icon: const Icon(Icons.restart_alt, size: 16),
-              label: Text(tr('Reboot')),
-            ),
-          ),
-          const SizedBox(width: 8),
-          IssuesButton(c),
-          // armed state and flight mode, visible on every page
-          if (c.target != null && c.hb != null) ...[
-            const SizedBox(width: 10),
-            Tooltip(
-              message: tr('Armed state and flight mode of the vehicle'),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  StatusChip(c.hb!.armed ? 'ARMED' : 'Disarmed', c.hb!.armed ? Tone.err : Tone.ok),
-                  const SizedBox(width: 6),
-                  StatusChip(c.hb!.mode, Tone.accent),
-                ],
+          if (!c.missionMode) ...[
+            Flexible(
+              flex: 6,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: _Picker<String?>(
+                  value: items.containsKey(c.selectedPort) ? c.selectedPort : null,
+                  hint: 'No ports found',
+                  enabled: !busy,
+                  items: items,
+                  onChanged: c.selectPort,
+                ),
               ),
             ),
-          ],
-          // the link state only while there is no vehicle to show (connecting, waiting, link lost)
-          if (c.target == null || c.hb == null || link.tone != Tone.ok) ...[
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 96,
+              child: Tooltip(
+                message: tr('Baud rate'),
+                child: _Picker<int>(
+                  value: c.selectedBaud,
+                  enabled: !busy,
+                  items: {for (final b in baudRates) b: '$b'},
+                  onChanged: (b) => c.selectBaud(b ?? defaultBaud),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
             SizedBox(
               width: 130,
-              child: Align(alignment: Alignment.centerRight, child: StatusChip(link.text, link.tone, dot: true)),
+              child: FilledButton.icon(
+                style: busy ? FilledButton.styleFrom(backgroundColor: AppColors.err) : null,
+                onPressed: busy ? () => _disconnect(context, c) : (c.selectedPort != null ? c.toggleConnection : null),
+                icon: Icon(busy ? Icons.link_off : Icons.usb, size: 16),
+                label: Text(tr(c.connected ? 'Disconnect' : (c.job != null ? 'Cancel' : 'Connect'))),
+              ),
             ),
+            const SizedBox(width: 8),
+            Tooltip(
+              message: tr('Reboot the board; it reconnects by itself'),
+              child: OutlinedButton.icon(
+                onPressed: c.target != null && c.job == null ? c.rebootBoard : null,
+                icon: const Icon(Icons.restart_alt, size: 16),
+                label: Text(tr('Reboot')),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IssuesButton(c),
+            // armed state and flight mode, visible on every page
+            if (c.target != null && c.hb != null) ...[
+              const SizedBox(width: 10),
+              Tooltip(
+                message: tr('Armed state and flight mode of the vehicle'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    StatusChip(c.hb!.armed ? 'ARMED' : 'Disarmed', c.hb!.armed ? Tone.err : Tone.ok),
+                    const SizedBox(width: 6),
+                    StatusChip(c.hb!.mode, Tone.accent),
+                  ],
+                ),
+              ),
+            ],
+            // the link state only while there is no vehicle to show (connecting, waiting, link lost)
+            if (c.target == null || c.hb == null || link.tone != Tone.ok) ...[
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 130,
+                child: Align(alignment: Alignment.centerRight, child: StatusChip(link.text, link.tone, dot: true)),
+              ),
+            ],
+          ] else ...[
+            ListenableBuilder(listenable: c.mission, builder: (context, _) => _MissionConnection(c)),
           ],
         ],
       ),
@@ -379,8 +411,13 @@ class _SidebarState extends State<_Sidebar> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 10),
               children: [
-                for (final group in pageGroups) ...[
-                  if (!_compact)
+                // the pages of the chosen device without a heading, then the app pages
+                for (final group in pageGroups.where(
+                  (g) => g == 'App' || g == (c.missionMode ? 'Mission Computer' : 'Flight Controller'),
+                )) ...[
+                  if (group != 'App')
+                    const SizedBox(height: 6)
+                  else if (!_compact)
                     InkWell(
                       onTap: () => _fold(group),
                       child: Padding(
@@ -410,7 +447,7 @@ class _SidebarState extends State<_Sidebar> {
                     )
                   else
                     const Divider(height: 14, indent: 14, endIndent: 14),
-                  if (_compact || !_folded.contains(group))
+                  if (_compact || group != 'App' || !_folded.contains(group))
                     for (final info in pageInfos.where((p) => p.group == group))
                       _NavButton(
                         info: info,
@@ -626,3 +663,57 @@ class LinkButton extends StatelessWidget {
         : OutlinedButton.icon(onPressed: action, icon: Icon(icon, size: 16), label: text);
   }
 }
+
+/// Connection area for the mission computer: who is logged in, and Connect (scan or address) / Disconnect.
+class _MissionConnection extends StatelessWidget {
+  const _MissionConnection(this.c);
+  final BoardController c;
+
+  @override
+  Widget build(BuildContext context) {
+    final link = c.mission;
+    final connected = link.state == SshState.connected;
+    final connecting = link.state == SshState.connecting;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StatusChip(
+          connected ? '${link.user}@${link.host}' : (connecting ? 'Connecting…' : 'Not connected'),
+          connected ? Tone.ok : (connecting ? Tone.accent : Tone.muted),
+          dot: true,
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 140,
+          child: FilledButton.icon(
+            style: connected ? FilledButton.styleFrom(backgroundColor: AppColors.err) : null,
+            onPressed: connecting ? null : (connected ? link.disconnect : () => showSshLoginDialog(context, c)),
+            icon: Icon(connected ? Icons.link_off : Icons.lan_outlined, size: 16),
+            label: Text(tr(connected ? 'Disconnect' : 'Connect')),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The SSH login (scan or address) in a window; it closes after a successful login.
+Future<void> showSshLoginDialog(BuildContext context, BoardController c) => showDialog<void>(
+  context: context,
+  builder: (dialogContext) => AlertDialog(
+    title: Text(tr('Connect to the mission computer'), style: Theme.of(dialogContext).textTheme.titleMedium),
+    content: SizedBox(
+      width: 640,
+      child: SingleChildScrollView(
+        child: SshLoginPanel(
+          c,
+          onConnected: () {
+            Navigator.of(dialogContext).pop();
+            c.showPage(AppPage.missionComputer);
+          },
+        ),
+      ),
+    ),
+    actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: Text(tr('Close')))],
+  ),
+);

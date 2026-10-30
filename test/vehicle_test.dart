@@ -165,7 +165,7 @@ void main() {
     // the search finds parameters by name
     final hits = searchAll(c, 'pilot_speed');
     expect(hits.first.param, 'PILOT_SPEED_UP');
-    expect(searchAll(c, 'osd').first.info!.label, 'Board Settings');
+    expect(searchAll(c, 'osd').first.info!.label, 'Parameters');
 
     // flight mode and arm go out as commands
     c.setFlightMode(5);

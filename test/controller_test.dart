@@ -54,6 +54,7 @@ void main() {
 
   boardTest('a board that goes silent is disconnected and reconnected by itself', (tester, h) async {
     final c = h.controller;
+    c.setAutoConnect(true); // off by default
     await h.connect(tester);
     await h.run(tester, 2);
     expect(c.target, isNotNull);
@@ -100,6 +101,26 @@ void main() {
     h.board.gpsFixType = 1; // a receiver answers, still without a fix
     await h.run(tester, 1);
     expect(h.controller.liveRows().firstWhere((r) => r.label == 'GPS 1').chip, isNot('-'));
+  });
+
+  boardTest('connecting and disconnecting many times leaves no port open and no listeners behind', (tester, h) async {
+    final c = h.controller;
+    final listeners = c.messageListeners.length;
+    for (var i = 0; i < 30; i++) {
+      await h.connect(tester);
+      await h.run(tester, 0.5);
+      expect(c.connected, isTrue);
+      await c.toggleConnection(); // disconnect
+      await h.run(tester, 0.5);
+      expect(c.connected, isFalse);
+      expect(h.board.link!.closed, isTrue, reason: 'port still open after disconnect $i');
+    }
+    expect(c.messageListeners.length, listeners);
+    // closing the app releases an open port as well
+    await h.connect(tester);
+    await h.run(tester, 0.5);
+    await c.shutdown();
+    expect(h.board.link!.closed, isTrue);
   });
 
   boardTest('apply writes only the changed parameters, reboots and reconnects', (tester, h) async {

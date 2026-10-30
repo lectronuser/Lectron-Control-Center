@@ -43,6 +43,9 @@ class CalState {
 
   /// Set by a cancel: messages of the cancelled calibration that are still on their way are ignored.
   double cancelledAt = -1e9;
+
+  /// When the running calibration started, for the watchdog that gives up when the vehicle stays silent.
+  double startedAt = 0;
   final Map<int, MagCalState> mags = {};
   final List<String> log = [];
 
@@ -141,6 +144,7 @@ class MotorIdentState {
 const List<(String key, String title)> wizardSteps = [
   ('accel', 'Accelerometer'),
   ('compass', 'Compass'),
+  ('radio', 'Radio calibration'),
   ('level', 'Level horizon'),
   ('gyro', 'Gyroscope'),
   ('baro', 'Barometer'),
@@ -178,7 +182,16 @@ extension SetupActions on BoardController {
   /// Starts [kind]; most send MAV_CMD_PREFLIGHT_CALIBRATION, the compass uses the onboard calibrator.
   void startCalibration(CalKind kind, {double yaw = 0}) {
     if (target == null) return;
+    if (hb?.armed == true) {
+      cal
+        ..kind = kind
+        ..phase = CalPhase.failed
+        ..message = 'Disarm the vehicle to calibrate';
+      _changed();
+      return;
+    }
     cal
+      ..startedAt = mono()
       ..kind = kind
       ..phase = CalPhase.running
       ..message = ''
@@ -271,6 +284,40 @@ extension SetupActions on BoardController {
       ..phase = CalPhase.running
       ..message = 'Sampling, keep still…';
     _changed();
+  }
+
+  /// Gives up on a calibration the vehicle does not answer, instead of showing "running" for ever. Called from the
+  /// controller's tick.
+  void _calWatchdog(double now) {
+    if (!cal.busy) return;
+    final age = now - cal.startedAt;
+    String? problem;
+    switch (cal.kind) {
+      case CalKind.level || CalKind.gyro || CalKind.baro || CalKind.airspeed || CalKind.accelSimple:
+        if (!isPx4 && age > 30) problem = 'No answer from the vehicle within 30 s';
+      case CalKind.accel:
+        // the vehicle asks for the first pose within a second or two
+        if (!isPx4 && age > 10 && cal.pose == 0 && cal.sidesDone.isEmpty) {
+          problem = 'The vehicle did not start the accelerometer calibration';
+        }
+      case CalKind.compass:
+        if (!isPx4 && age > 10 && cal.mags.isEmpty) problem = 'The vehicle did not start the compass calibration';
+      default:
+        break;
+    }
+    if (problem == null) return;
+    cal
+      ..phase = CalPhase.failed
+      ..message = '$problem. Check that it is disarmed and read the messages, then try again.';
+    _changed();
+  }
+
+  /// The link dropped: a calibration that was running cannot finish.
+  void _calLinkLost() {
+    if (!cal.busy) return;
+    cal
+      ..phase = CalPhase.failed
+      ..message = 'The connection was lost during the calibration; reconnect and start it again';
   }
 
   /// Stops the running calibration on the vehicle, not only on the screen.

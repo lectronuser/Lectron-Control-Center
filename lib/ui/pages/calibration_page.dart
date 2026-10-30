@@ -13,6 +13,7 @@ import '../theme.dart';
 import '../vehicle3d.dart';
 import '../widgets.dart';
 import 'frame_page.dart';
+import 'receiver_page.dart';
 
 /// The calibrations step by step, with a live 3D vehicle; every step can be marked done or skipped.
 class CalibrationPage extends StatefulWidget {
@@ -43,6 +44,7 @@ class _CalibrationPageState extends State<CalibrationPage> {
   Widget _content(String key) => switch (key) {
     'accel' => AccelCalPanel(c),
     'compass' => CompassCalPanel(c),
+    'radio' => RadioCalPanel(c),
     'level' => _SimpleCal(
       c,
       CalKind.level,
@@ -63,7 +65,7 @@ class _CalibrationPageState extends State<CalibrationPage> {
     if (c.target == null) {
       return PageFrame(
         title: 'Calibration',
-        subtitle: 'Accelerometer, compass, level, gyro and barometer calibration, step by step',
+        subtitle: 'Accelerometer, compass, radio, level, gyro and barometer calibration, step by step',
         child: Muted('Connect a vehicle to calibrate it'),
       );
     }
@@ -211,6 +213,13 @@ class _CalControls extends StatelessWidget {
                 label: Text(tr('Cancel')),
               ),
             ...extra,
+            // as Mission Planner asks: the new calibration is used after a reboot
+            if (mine && c.cal.phase == CalPhase.done && c.rebootRequired)
+              FilledButton.icon(
+                onPressed: c.job == null ? c.rebootBoard : null,
+                icon: const Icon(Icons.restart_alt, size: 16),
+                label: Text(tr('Reboot now')),
+              ),
             if (mine && busy) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
           ],
         ),

@@ -13,6 +13,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'param_tools.dart';
 import 'peripherals_page.dart';
+import 'settings_page.dart';
 
 const _paramFiles = XTypeGroup(label: 'Parameter files', extensions: ['param', 'parm']);
 
@@ -28,6 +29,12 @@ class ParamsPage extends StatefulWidget {
 enum _Filter { all, modified, changedSinceBoot, notDefault }
 
 class _ParamsPageState extends State<ParamsPage> {
+  // async work (file dialogs, downloads, the vehicle) can finish after the page was left
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   final TextEditingController _searchText = TextEditingController();
   String _search = '';
   _Filter _filter = _Filter.all;
@@ -137,37 +144,54 @@ class _ParamsPageState extends State<ParamsPage> {
     return words.every(text.contains);
   }
 
+  /// The views next to the full list: forms for one area each.
+  static const List<String> _tabNames = [
+    'All parameters',
+    'External Devices',
+    'Board',
+    'Motors & ESC',
+    'Sensors & EKF',
+  ];
+
   Widget _tabs() => Padding(
-    padding: EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.only(bottom: 12),
     child: Align(
       alignment: Alignment.centerLeft,
-      child: SegmentedButton<int>(
-        showSelectedIcon: false,
-        segments: [
-          ButtonSegment(value: 0, label: Text(tr('All parameters'))),
-          ButtonSegment(value: 1, label: Text(tr('By group'))),
-          ButtonSegment(value: 2, label: Text(tr('Peripherals'))),
-        ],
-        selected: {_tab},
-        onSelectionChanged: (s) => setState(() => _tab = s.first),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SegmentedButton<int>(
+          showSelectedIcon: false,
+          segments: [for (var i = 0; i < _tabNames.length; i++) ButtonSegment(value: i, label: Text(tr(_tabNames[i])))],
+          selected: {_tab},
+          onSelectionChanged: (s) => setState(() => _tab = s.first),
+        ),
       ),
     ),
   );
 
   @override
   Widget build(BuildContext context) {
-    if (_tab == 1) {
+    if (_tab != 0) {
+      final (subtitle, Widget body) = switch (_tab) {
+        1 => (
+          'GPS, battery monitor, rangefinder, airspeed, optical flow, LEDs, buzzer, camera and gimbal',
+          PeripheralsView(c),
+        ),
+        2 => ('Ethernet, serial ports and the OSD layout of the board', BoardSettingsView(c)),
+        3 => ('ESC protocol, motor range and the initial tune', MotorsEscView(c)),
+        _ => (
+          'Which sensors the vehicle uses and where the EKF takes position, speed, height and heading from',
+          SensorSelectionCard(c),
+        ),
+      };
       return PageFrame(
         title: 'Parameters',
-        subtitle: 'Parameters as forms, one group at a time; changes are staged until Write',
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [_tabs(), ParamGroupsView(c)]),
-      );
-    }
-    if (_tab == 2) {
-      return PageFrame(
-        title: 'Parameters',
-        subtitle: 'GPS, battery monitor, rangefinder, airspeed, optical flow, LEDs, buzzer, camera and gimbal',
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [_tabs(), PeripheralsView(c)]),
+        subtitle: subtitle,
+        actions: [
+          Muted(c.paramSummary),
+          LinkButton(c, 'Read Parameters', c.startParamFetch, icon: Icons.refresh),
+        ],
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [_tabs(), body]),
       );
     }
     final names = [

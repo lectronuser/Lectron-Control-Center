@@ -21,6 +21,12 @@ class MessagesPage extends StatefulWidget {
 }
 
 class _MessagesPageState extends State<MessagesPage> {
+  // async work (file dialogs, downloads, the vehicle) can finish after the page was left
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   int _maxSeverity = Mav.severityDebug;
   String _search = '';
 

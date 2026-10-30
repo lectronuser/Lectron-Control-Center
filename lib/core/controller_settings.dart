@@ -213,6 +213,34 @@ extension SettingsActions on BoardController {
     setStatus('output', 'OUT$output set to $pwm µs', Tone.accent);
   }
 
+  /// Sends 25 % to output [output] (1-based) for 2 s. A motor output goes through the motor test, which the
+  /// firmware stops by itself; any other output gets PWM at 25 % of its range and then its minimum again.
+  void testOutput(int output) {
+    final function = paramInt('SERVO${output}_FUNCTION');
+    final motor = switch (function) {
+      >= 33 && <= 40 => function - 32,
+      >= 82 && <= 85 => function - 73,
+      _ => null,
+    };
+    if (motor != null) {
+      // the motor test numbers motors in test order (A, B, ...), not by motor number
+      final layout = frameLayout;
+      final order = layout?.positions.indexWhere((p) => p.$3 == motor) ?? -1;
+      final seq = order >= 0 ? order + 1 : motor;
+      sendCommand(Mav.cmdDoMotorTest, [seq, 0, 25, 2, 0, 0], 'output');
+      setStatus('output', 'OUT$output (motor $motor): 25 % for 2 s', Tone.accent);
+      return;
+    }
+    final min = params['SERVO${output}_MIN']?.round() ?? 1000;
+    final max = params['SERVO${output}_MAX']?.round() ?? 2000;
+    final pwm = min + ((max - min) * 0.25).round();
+    sendCommand(Mav.cmdDoSetServo, [output, pwm, 0, 0, 0, 0, 0], 'output');
+    setStatus('output', 'OUT$output: $pwm µs (25 %) for 2 s', Tone.accent);
+    Timer(const Duration(seconds: 2), () {
+      if (target != null) sendCommand(Mav.cmdDoSetServo, [output, min, 0, 0, 0, 0, 0], 'output');
+    });
+  }
+
   void motorStop() {
     for (var motor = 1; motor <= 12; motor++) {
       sendCommand(Mav.cmdDoMotorTest, [motor, 0, 0, 0, 1, 0]);

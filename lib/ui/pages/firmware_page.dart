@@ -24,6 +24,12 @@ class FirmwarePage extends StatefulWidget {
 }
 
 class _FirmwarePageState extends State<FirmwarePage> {
+  // async work (file dialogs, downloads, the vehicle) can finish after the page was left
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   FirmwareImage? _local;
   String _localName = '';
   String _status = '';

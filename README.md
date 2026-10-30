@@ -11,11 +11,12 @@ on Linux. English and Turkish.
 
 | Group | Pages |
 |---|---|
-| **Mission Computer** | Mission computer on the board, e.g. a Raspberry Pi CM5 (in progress) |
-| **Flight Controller** | **Overview** (health tiles, board identity and link, attitude with roll / pitch / yaw, horizon and compass, the detected sensors and their live values) · **Frame** (every frame as a picture; picking one writes it and reboots) · **Calibration** (accelerometer, compass with a rotation guide, level, gyro, baro, airspeed on planes) · **Motors & Outputs** (frame and motor diagram, motor identification, motor test, output test that drives any output with a PWM value, ESC protocol) · **Receiver** (all 16 RC channels, guided radio calibration) · **Board Settings** (Ethernet, serial ports, OSD layout) · **Parameters** (all parameters, by group, peripherals) · **Logs** · **Messages** · **Firmware** (local `.apj` / `.px4` / `.bin`) |
+| **Mission Computer** | SSH to the mission computer (e.g. a Raspberry Pi CM5): find it with a network scan or enter IP, user and password; device information (model, system, load, temperature, memory, disk, addresses) and a shell with quick commands; host key remembered, password never stored |
+| **Flight Controller** | **Overview** (health tiles, board identity and link, attitude with roll / pitch / yaw, horizon and compass, the detected sensors and their live values) · **Frame** (every frame as a picture; picking one writes it and reboots) · **Calibration** (accelerometer, compass with a rotation guide, radio, level, gyro, baro, airspeed on planes; cancel stops it on the vehicle, timeouts when the vehicle stays silent, reboot when the calibration needs it) · **Motors & Outputs** (frame and motor diagram, motor identification, motor test, a 25 % test button on every output) · **Receiver** (all 16 RC channels, guided radio calibration) · **Parameters** (all parameters with documentation and `.param` files; tabs for external devices, board: Ethernet / serial / OSD, motors & ESC with the initial tune, sensors & EKF) · **Logs** · **Messages** · **Firmware** (local `.apj` / `.px4` / `.bin`) |
 | **App** | **Report & Test** (port by port board test with PDF report) · **Settings** (language, auto-connect, folders) |
 
-Everywhere: serial links (USB or UART), recent ports and auto-connect (on Settings); Reboot next to Disconnect; an issues button in the top bar with the missing sensors, setup steps and PreArm reasons; staged changes with one **Write** / **Discard** bar; **Ctrl+K** search over pages and parameter
+Everywhere: one connection area in the top bar: pick the device (flight controller over USB / UART, or the mission
+computer over SSH) and the sidebar shows its pages; recent ports and auto-connect (off by default, on Settings); Reboot next to Disconnect; an issues button in the top bar with the missing sensors, setup steps and PreArm reasons; staged changes with one **Write** / **Discard** bar; **Ctrl+K** search over pages and parameter
 descriptions; inspection dock (**Ctrl+J**) with pinned values and 30 s graphs; yellow banners for missing sensors
 and calibrations; a readiness check on disconnect.
 

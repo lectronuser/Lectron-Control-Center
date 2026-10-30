@@ -57,7 +57,6 @@ enum AppPage {
   calibration,
   outputs,
   receiver,
-  settings,
   params,
   terminal,
   logs,
@@ -92,7 +91,16 @@ class BoardController extends ChangeNotifier {
     final baud = storage.getInt('baud');
     selectedBaud = baud != null && baudRates.contains(baud) ? baud : defaultBaud;
     language = storage.getString('language') == 'tr' ? 'tr' : 'en';
-    autoConnect = storage.getBool('autoConnect') ?? true;
+    // off unless the user turns it on: opening a port by itself surprised people; settings saved by older
+    // versions (where it was on by default) are switched off once
+    if (storage.getBool('autoConnectOffByDefault') != true) {
+      storage
+        ..put('autoConnect', false)
+        ..put('autoConnectOffByDefault', true);
+    }
+    autoConnect = storage.getBool('autoConnect') ?? false;
+    missionMode = storage.getBool('missionMode') ?? false;
+    if (missionMode) page = AppPage.missionComputer;
     for (final line in (storage.getString('recent') ?? '').split('\n')) {
       final parts = line.split('|');
       final baud = parts.length == 2 ? int.tryParse(parts[1]) : null;
@@ -384,7 +392,29 @@ class BoardController extends ChangeNotifier {
 
   void showPage(AppPage value) {
     page = value;
+    // a page of the other device (e.g. picked in the search) switches the device as well
+    if (value == AppPage.missionComputer) {
+      _setMissionMode(true);
+    } else if (value != AppPage.app && value != AppPage.test) {
+      _setMissionMode(false);
+    }
     _changed();
+  }
+
+  /// Which device the connection area and the sidebar are about: the mission computer (SSH) or the flight
+  /// controller (serial).
+  bool missionMode = false;
+
+  void setMissionMode(bool on) {
+    if (on == missionMode) return;
+    _setMissionMode(on);
+    page = on ? AppPage.missionComputer : AppPage.board;
+    _changed();
+  }
+
+  void _setMissionMode(bool on) {
+    missionMode = on;
+    storage.put('missionMode', on);
   }
 
   // ---- connection -------------------------------------------------------------------------------
@@ -481,6 +511,7 @@ class BoardController extends ChangeNotifier {
   }
 
   void _disconnectBoard() {
+    _calLinkLost();
     _paramRetryAt = null;
     _sub?.cancel();
     _sub = null;
@@ -618,6 +649,7 @@ class BoardController extends ChangeNotifier {
       final now = mono();
       _tickCount++;
       _checkActiveTest();
+      _calWatchdog(now);
       _jobTick(now);
       if (connected) _drainOutbox();
       // a board that hangs while its USB port stays: nothing arrives any more, so reopen the port

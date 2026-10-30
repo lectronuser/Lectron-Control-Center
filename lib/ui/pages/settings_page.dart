@@ -7,27 +7,18 @@ import '../../core/board_controller.dart';
 import '../shell.dart';
 import '../theme.dart';
 import '../widgets.dart';
-import '../banners.dart';
 import 'osd_page.dart';
 
-/// Board settings: Ethernet, serial ports and the OSD layout on one page.
-class SettingsPage extends StatelessWidget {
-  const SettingsPage(this.c, {super.key});
+/// Board settings: Ethernet, serial ports and the OSD layout; a tab of the Parameters page.
+class BoardSettingsView extends StatelessWidget {
+  const BoardSettingsView(this.c, {super.key});
   final BoardController c;
 
   @override
   Widget build(BuildContext context) {
-    return PageFrame(
-      title: 'Board Settings',
-      subtitle: 'Ethernet, serial ports and the OSD layout',
-      actions: [
-        Muted(c.paramSummary),
-        LinkButton(c, 'Read Parameters', c.startParamFetch, icon: Icons.refresh),
-      ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [ChangedSinceBoot(c, AppPage.settings), _networkAndPorts(), SectionTitle('OSD Layout'), OsdEditor(c)],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [_networkAndPorts(), SectionTitle('OSD Layout'), OsdEditor(c)],
     );
   }
 

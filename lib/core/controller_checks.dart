@@ -22,11 +22,11 @@ const Map<AppPage, List<String>> pageParamPrefixes = {
   AppPage.calibration: ['INS_', 'COMPASS_', 'AHRS_', 'CAL_', 'SENS_BOARD', 'EK3_', 'EKF2_'],
   AppPage.outputs: ['SERVO', 'MOT_', 'FRAME_', 'PWM_', 'CA_', 'DSHOT', 'SYS_AUTOSTART'],
   AppPage.receiver: ['RC', 'RSSI_', 'RCMAP_'],
-  AppPage.settings: [
+  AppPage.params: [
     ...['SERIAL', 'SER_', 'MAV_', 'NET_', 'OSD'],
     ...['FS_', 'BATT', 'FENCE_', 'ARMING_', 'COM_', 'NAV_DLL', 'NAV_RCL', 'GF_', 'BAT', 'RTL_'],
+    ...['GPS', 'RNGFND', 'ARSPD', 'FLOW_', 'NTF_', 'CAM', 'MNT', 'LED', 'BUZZ'],
   ],
-  AppPage.params: ['GPS', 'RNGFND', 'ARSPD', 'FLOW_', 'NTF_', 'CAM', 'MNT', 'LED', 'BUZZ'],
 };
 
 extension VehicleChecks on BoardController {

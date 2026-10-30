@@ -114,6 +114,12 @@ class LogsPage extends StatefulWidget {
 }
 
 class _LogsPageState extends State<LogsPage> {
+  // async work (file dialogs, downloads, the vehicle) can finish after the page was left
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   Timer? _play;
   double _speed = 1;
   String _search = '';

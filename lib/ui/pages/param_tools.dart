@@ -143,95 +143,49 @@ class SensorSelectionCard extends StatelessWidget {
   }
 }
 
-/// Parameters as form cards, one group at a time, like the Peripherals tab; plus the initial tune and the sensor
-/// selection, which are not tied to one group.
-class ParamGroupsView extends StatefulWidget {
-  const ParamGroupsView(this.c, {super.key});
+/// ESC protocol, motor range and the initial tune; a tab of the Parameters page.
+class MotorsEscView extends StatelessWidget {
+  const MotorsEscView(this.c, {super.key});
   final BoardController c;
 
   @override
-  State<ParamGroupsView> createState() => _ParamGroupsViewState();
-}
-
-class _ParamGroupsViewState extends State<ParamGroupsView> {
-  static const String _tune = 'Initial tune';
-  static const String _sensors = 'Sensor selection & EKF';
-  String _group = _sensors;
-  String _filter = '';
-
-  BoardController get c => widget.c;
-
-  /// Group of a parameter: its prefix without instance numbers, e.g. SERIAL1_BAUD -> SERIAL.
-  static String groupOf(String name) {
-    final head = name.split('_').first;
-    final trimmed = head.replaceFirst(RegExp(r'\d+$'), '');
-    return trimmed.isEmpty ? head : trimmed;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (c.params.isEmpty) return Muted('Connect a vehicle and read its parameters');
-    final groups = <String, List<String>>{};
-    for (final name in c.params.keys) {
-      groups.putIfAbsent(groupOf(name), () => []).add(name);
-    }
-    final names = groups.keys.toList()..sort();
-    final shown = [
-      for (final g in names)
-        if (_filter.isEmpty || g.toLowerCase().contains(_filter.toLowerCase())) g,
-    ];
-    if (_group != _tune && _group != _sensors && !groups.containsKey(_group)) _group = _sensors;
-    Widget chip(String label, {int? count}) => ChoiceChip(
-      label: Text(count == null ? label : '$label  $count', style: const TextStyle(fontSize: 12.5)),
-      selected: _group == label,
-      showCheckmark: false,
-      onSelected: (_) => setState(() => _group = label),
-    );
-    final Widget body;
-    if (_group == _tune) {
-      body = InitialTuneCard(c);
-    } else if (_group == _sensors) {
-      body = SensorSelectionCard(c);
-    } else {
-      // one card per instance (SERIAL1, SERIAL2, ...), long single groups in pieces for the two columns
-      final list = groups[_group]!..sort();
-      final byHead = <String, List<String>>{};
-      for (final n in list) {
-        byHead.putIfAbsent(n.split('_').first, () => []).add(n);
-      }
-      final sections = <ParamSection>[];
-      byHead.forEach((head, members) {
-        for (var i = 0; i < members.length; i += 14) {
-          final part = members.sublist(i, (i + 14).clamp(0, members.length));
-          final title = members.length > 14 ? '$head  ${i ~/ 14 + 1}/${(members.length / 14).ceil()}' : head;
-          sections.add(ParamSection(title, [for (final n in part) PField.one(n)], always: true));
-        }
-      });
-      body = ParamSections(c, sections);
-    }
+    if (c.target == null) return Muted('Connect a vehicle to set up its motors and ESCs');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Wrap(spacing: 8, runSpacing: 8, children: [chip(_sensors), chip(_tune)]),
-              const Divider(height: 24),
-              SizedBox(
-                width: 260,
-                child: TextField(
-                  decoration: InputDecoration(hintText: tr('Filter groups'), prefixIcon: Icon(Icons.search, size: 18)),
-                  onChanged: (v) => setState(() => _filter = v.trim()),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(spacing: 8, runSpacing: 8, children: [for (final g in shown) chip(g, count: groups[g]!.length)]),
-            ],
+        ParamSections(c, [
+          ParamSection(
+            'ESC protocol',
+            c.isPx4
+                ? [
+                    PField.one('DSHOT_CONFIG'),
+                    PField.one('DSHOT_BIDIR_EN'),
+                    PField.one('DSHOT_TEL_CFG'),
+                    PField.one('PWM_MAIN_TIM0'),
+                    PField.one('PWM_MAIN_TIM1'),
+                  ]
+                : [
+                    PField.one('MOT_PWM_TYPE'),
+                    PField.one('SERVO_DSHOT_ESC'),
+                    PField.one('SERVO_BLH_BDMASK'),
+                    PField.one('SERVO_BLH_MASK'),
+                    PField.one('MOT_PWM_MIN'),
+                    PField.one('MOT_PWM_MAX'),
+                  ],
           ),
-        ),
+          ParamSection('Motor range', [
+            PField.one('MOT_SPIN_ARM'),
+            PField.one('MOT_SPIN_MIN'),
+            PField.one('MOT_SPIN_MAX'),
+            PField.one('MOT_THST_EXPO'),
+            PField.one('MOT_THST_HOVER'),
+            PField.one('MPC_THR_HOVER'),
+            PField.one('MPC_THR_MIN'),
+          ]),
+        ]),
         const SizedBox(height: 16),
-        body,
+        InitialTuneCard(c),
       ],
     );
   }

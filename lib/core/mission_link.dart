@@ -146,6 +146,24 @@ class MissionComputerLink extends ChangeNotifier {
   SSHClient? _client;
   SSHSession? _shell;
 
+  /// Facts about the mission computer, label -> value, read right after the login.
+  Map<String, String> info = {};
+  bool readingInfo = false;
+
+  /// One shell line per fact: "key=value"; every part tolerates a missing tool or file.
+  static const String _infoScript = r'''
+echo "Host name=$(hostname)"
+echo "Model=$(tr -d '\0' 2>/dev/null </proc/device-tree/model)"
+echo "System=$( . /etc/os-release 2>/dev/null; echo "$PRETTY_NAME")"
+echo "Kernel=$(uname -r) ($(uname -m))"
+echo "Uptime=$(uptime -p 2>/dev/null)"
+echo "CPU=$(nproc 2>/dev/null) cores, load $(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)"
+t=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null); [ -n "$t" ] && echo "CPU temperature=$((t / 1000)) °C"
+echo "Memory=$(free -h 2>/dev/null | awk '/^Mem:/{print $3" used of "$2}')"
+echo "Disk (/)=$(df -h / 2>/dev/null | awk 'NR==2{print $3" used of "$2" ("$5")"}')"
+echo "IP addresses=$(hostname -I 2>/dev/null)"
+''';
+
   String get lastHost => storage.getString('sshHost') ?? '';
   String get lastUser => storage.getString('sshUser') ?? 'pi';
   int get lastPort => storage.getInt('sshPort') ?? 22;
@@ -201,6 +219,7 @@ class MissionComputerLink extends ChangeNotifier {
         ..put('sshPort', port);
       state = SshState.connected;
       status = StatusText('Connected to ${this.user}@${this.host}', Tone.ok);
+      unawaited(readInfo());
     } catch (e) {
       _client?.close();
       _client = null;
@@ -254,6 +273,29 @@ class MissionComputerLink extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reads the facts of [info] over a separate SSH channel, so the shell is not disturbed.
+  Future<void> readInfo() async {
+    final client = _client;
+    if (client == null || readingInfo) return;
+    readingInfo = true;
+    notifyListeners();
+    try {
+      final out = utf8.decode(
+        await client.run(_infoScript, stderr: false).timeout(const Duration(seconds: 15)),
+        allowMalformed: true,
+      );
+      info = {
+        for (final line in const LineSplitter().convert(out))
+          if (line.contains('=') && line.substring(line.indexOf('=') + 1).trim().isNotEmpty)
+            line.substring(0, line.indexOf('=')).trim(): line.substring(line.indexOf('=') + 1).trim(),
+      };
+    } catch (e) {
+      info = {'Error': 'Could not read the device information: $e'};
+    }
+    readingInfo = false;
+    notifyListeners();
+  }
+
   /// Sends [text] to the shell as typed; a command needs its trailing newline.
   void send(String text) {
     final shell = _shell;
@@ -275,6 +317,7 @@ class MissionComputerLink extends ChangeNotifier {
 
   void _closed(String text) {
     if (state == SshState.idle) return;
+    info = {};
     _shell = null;
     _client = null;
     state = SshState.idle;
@@ -288,6 +331,7 @@ class MissionComputerLink extends ChangeNotifier {
     _shell = null;
     _client = null;
     state = SshState.idle;
+    info = {};
     status = StatusText('Disconnected from $host', Tone.muted);
     notifyListeners();
     client?.close();

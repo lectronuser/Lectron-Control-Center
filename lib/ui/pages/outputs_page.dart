@@ -9,7 +9,6 @@ import '../banners.dart';
 import '../param_form.dart';
 import '../theme.dart';
 import '../widgets.dart';
-import '../../board/board_data.dart';
 
 /// PX4 airframes offered in the picker (from PX4's ROMFS airframe files).
 const Map<int, String> px4Airframes = {
@@ -90,8 +89,6 @@ class OutputsPage extends StatefulWidget {
 class _OutputsPageState extends State<OutputsPage> {
   bool _propsOff = false;
   int _throttle = 7;
-  int _output = 1;
-  double _pwm = 1000;
 
   BoardController get c => widget.c;
 
@@ -148,55 +145,6 @@ class _OutputsPageState extends State<OutputsPage> {
         ],
       ),
     );
-    final servo = c.servo ?? const <int>[];
-    final outputCount = c.isArdupilot ? 16 : servo.length.clamp(8, 16);
-    final function = c.paramInt('SERVO${_output}_FUNCTION');
-    final outputCard = AppCard(
-      title: 'Output test',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Muted('Send a PWM signal straight to any output, e.g. an extra motor or a servo you added.', size: 12.5),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              SizedBox(
-                width: 110,
-                child: EnumDropdown(
-                  options: {for (var n = 1; n <= outputCount; n++) n: 'OUT$n'},
-                  value: _output,
-                  onChanged: (n) => setState(() => _output = n),
-                ),
-              ),
-              Expanded(
-                child: Slider(
-                  value: _pwm,
-                  min: 800,
-                  max: 2200,
-                  divisions: 140,
-                  label: '${_pwm.round()} µs',
-                  onChanged: (v) => setState(() => _pwm = v),
-                ),
-              ),
-              SizedBox(width: 70, child: Text('${_pwm.round()} µs', style: monoStyle.copyWith(fontSize: 12.5))),
-              FilledButton(
-                onPressed: _propsOff && c.connected ? () => c.setOutputPwm(_output, _pwm.round()) : null,
-                child: Text(tr('Send')),
-              ),
-            ],
-          ),
-          PwmBar('OUT$_output  ${tr('now')}', _output <= servo.length ? servo[_output - 1] : 0),
-          if (c.isArdupilot)
-            Muted(
-              '${tr('Function')}: ${servoFunctions[function] ?? '$function'}. '
-              '${tr('ArduPilot drives the output only when its function is Disabled (0); motors are tested with the buttons above.')}',
-              size: 12,
-            ),
-          StatusLine(c.status('output')),
-          if (!_propsOff) Muted('Tick "Propellers are removed" in Motor test first.', size: 12),
-        ],
-      ),
-    );
     return PageFrame(
       title: 'Motors & Outputs',
       subtitle: 'Frame, motor order, motor and output test, ESC protocol',
@@ -219,40 +167,11 @@ class _OutputsPageState extends State<OutputsPage> {
                   ),
           ),
           const SizedBox(height: 16),
-          outputCard,
-          const SizedBox(height: 16),
-          AppCard(title: 'Outputs', child: c.isPx4 ? _Px4Outputs(c) : _ApOutputs(c)),
-          const SizedBox(height: 16),
-          ParamSections(c, [
-            ParamSection(
-              'ESC protocol',
-              c.isPx4
-                  ? [
-                      PField.one('DSHOT_CONFIG'),
-                      PField.one('DSHOT_BIDIR_EN'),
-                      PField.one('DSHOT_TEL_CFG'),
-                      PField.one('PWM_MAIN_TIM0'),
-                      PField.one('PWM_MAIN_TIM1'),
-                    ]
-                  : [
-                      PField.one('MOT_PWM_TYPE'),
-                      PField.one('SERVO_DSHOT_ESC'),
-                      PField.one('SERVO_BLH_BDMASK'),
-                      PField.one('SERVO_BLH_MASK'),
-                      PField.one('MOT_PWM_MIN'),
-                      PField.one('MOT_PWM_MAX'),
-                    ],
-            ),
-            ParamSection('Motor range', [
-              PField.one('MOT_SPIN_ARM'),
-              PField.one('MOT_SPIN_MIN'),
-              PField.one('MOT_SPIN_MAX'),
-              PField.one('MOT_THST_EXPO'),
-              PField.one('MOT_THST_HOVER'),
-              PField.one('MPC_THR_HOVER'),
-              PField.one('MPC_THR_MIN'),
-            ]),
-          ]),
+          AppCard(
+            title: 'Outputs',
+            trailing: StatusLine(c.status('output')),
+            child: c.isPx4 ? _Px4Outputs(c) : _ApOutputs(c, propsOff: _propsOff),
+          ),
         ],
       ),
     );
@@ -428,8 +347,11 @@ class _FramePainter extends CustomPainter {
 }
 
 class _ApOutputs extends StatelessWidget {
-  const _ApOutputs(this.c);
+  const _ApOutputs(this.c, {required this.propsOff});
   final BoardController c;
+
+  /// "Propellers are removed" of the motor test: the test buttons only work with it ticked.
+  final bool propsOff;
 
   @override
   Widget build(BuildContext context) {
@@ -448,6 +370,7 @@ class _ApOutputs extends StatelessWidget {
       Col('Max', width: 90),
       Col('Reversed', flex: 2),
       Col('Now', width: 70),
+      Col('Test', width: 120),
     ];
     return SimpleTable(
       columns: columns,
@@ -468,6 +391,16 @@ class _ApOutputs extends StatelessWidget {
             if (c.params.containsKey('SERVO${i}_MAX')) ParamEditor(c, 'SERVO${i}_MAX') else const SizedBox(),
             if (c.params.containsKey('SERVO${i}_REVERSED')) ParamEditor(c, 'SERVO${i}_REVERSED') else const SizedBox(),
             Text(i <= servo.length && servo[i - 1] != 0 ? '${servo[i - 1]}' : '-', style: monoStyle),
+            Tooltip(
+              message: propsOff
+                  ? tr('25 % for 2 s: a motor through the motor test, any other output as PWM')
+                  : tr('Tick "Propellers are removed" in Motor test first'),
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10)),
+                onPressed: propsOff && c.connected && c.hb?.armed != true ? () => c.testOutput(i) : null,
+                child: Text(tr('Send test')),
+              ),
+            ),
           ],
       ],
     );

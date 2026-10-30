@@ -9,6 +9,7 @@ import '../../board/board_data.dart';
 import '../../core/board_controller.dart';
 import '../../core/models.dart';
 import '../theme.dart';
+import '../param_form.dart';
 import '../widgets.dart';
 
 /// Port by port board test, the connector pinouts and the PDF report.
@@ -21,15 +22,66 @@ class TestPage extends StatefulWidget {
 }
 
 class _TestPageState extends State<TestPage> {
+  // async work (file dialogs, downloads, the vehicle) can finish after the page was left
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   String _pinout = portTests.first.connector;
+
+  /// Which rows are shown: all, not yet decided, failed or passed.
+  _Filter _filter = _Filter.all;
+
+  /// One key per connector card, to scroll to the card of the next test.
+  final Map<String, GlobalKey> _cardKeys = {};
 
   BoardController get c => widget.c;
 
+  bool _shown(PortTest spec) => _countAs(_filter, spec);
+
+  /// The first port that can be tested and has no result yet, in board order.
+  PortTest? get _next {
+    for (final spec in portTests) {
+      if (!c.testEnabled(spec)) continue;
+      final s = c.tests[spec.key]!.state;
+      if (s == TestStatus.idle || s == TestStatus.manual) return spec;
+    }
+    return null;
+  }
+
+  /// Starts the next open test, shows its pinout and scrolls its card into view.
+  void _testNext() {
+    final spec = _next;
+    if (spec == null) return;
+    setState(() {
+      _pinout = spec.connector;
+      if (_filter == _Filter.passed || _filter == _Filter.failed) _filter = _Filter.all;
+    });
+    c.runTest(spec.key);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _cardKeys[spec.connector]?.currentContext;
+      if (ctx != null && ctx.mounted) {
+        Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), alignment: 0.1);
+      }
+    });
+  }
+
+  bool _countAs(_Filter f, PortTest spec) {
+    final s = c.tests[spec.key]!.state;
+    return switch (f) {
+      _Filter.all => true,
+      _Filter.open => s != TestStatus.pass && s != TestStatus.fail && s != TestStatus.na,
+      _Filter.failed => s == TestStatus.fail,
+      _Filter.passed => s == TestStatus.pass || s == TestStatus.na,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    // consecutive rows of one connector share a card
+    // consecutive rows of one connector share a card; the filter can leave a card out
     final groups = <List<PortTest>>[];
-    for (final spec in portTests) {
+    for (final spec in portTests.where(_shown)) {
       if (groups.isNotEmpty && groups.last.first.connector == spec.connector) {
         groups.last.add(spec);
       } else {
@@ -40,6 +92,7 @@ class _TestPageState extends State<TestPage> {
       children: [
         for (final group in groups)
           Padding(
+            key: _cardKeys.putIfAbsent(group.first.connector, GlobalKey.new),
             padding: const EdgeInsets.only(bottom: 12),
             child: _ConnectorCard(
               c,
@@ -54,13 +107,30 @@ class _TestPageState extends State<TestPage> {
     );
     final side = Column(children: [_PinoutCard(_pinout), const SizedBox(height: 16), _ReportCard(c)]);
     return PageFrame(
-      title: 'Test',
-      subtitle: 'Port by port board test, pinouts and the test report',
+      title: 'Report & Test',
+      subtitle: 'Board test port by port, the pinouts and the PDF test report',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SummaryCard(c),
-          const SizedBox(height: 16),
+          _SummaryCard(c, next: _next, onTestNext: _testNext),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SegmentedButton<_Filter>(
+              showSelectedIcon: false,
+              segments: [
+                for (final f in _Filter.values)
+                  ButtonSegment(
+                    value: f,
+                    label: Text('${tr(f.label)}  ${portTests.where((s) => _countAs(f, s)).length}'),
+                  ),
+              ],
+              selected: {_filter},
+              onSelectionChanged: (s) => setState(() => _filter = s.first),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (groups.isEmpty) Padding(padding: const EdgeInsets.all(12), child: Muted('Nothing in this list')),
           LayoutBuilder(
             builder: (context, box) {
               if (box.maxWidth < 1040) return Column(children: [tests, const SizedBox(height: 4), side]);
@@ -80,9 +150,23 @@ class _TestPageState extends State<TestPage> {
   }
 }
 
+enum _Filter {
+  all('All'),
+  open('To do'),
+  failed('Failed'),
+  passed('Passed');
+
+  const _Filter(this.label);
+  final String label;
+}
+
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard(this.c);
+  const _SummaryCard(this.c, {required this.next, required this.onTestNext});
   final BoardController c;
+
+  /// The next port without a result, null when every port has one.
+  final PortTest? next;
+  final VoidCallback onTestNext;
 
   @override
   Widget build(BuildContext context) {
@@ -96,41 +180,78 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Text(
-                '$passed / $total',
-                style: monoStyle.copyWith(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                  color: passed == total ? AppColors.ok : AppColors.text,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Muted('passed'),
-              const SizedBox(width: 16),
-              StatusChip(verdict, tone),
-              if (failed > 0) ...[const SizedBox(width: 8), StatusChip('$failed failed', Tone.err)],
-              if (total - passed - failed > 0) ...[
-                const SizedBox(width: 8),
-                StatusChip('${total - passed - failed} open', Tone.muted),
-              ],
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: c.resetTests,
-                icon: const Icon(Icons.restart_alt, size: 16),
-                label: Text(tr('Reset Results')),
-              ),
-              const SizedBox(width: 10),
-              Tooltip(
-                message: tr('Put back the port parameters changed by the tests (reboots the board)'),
-                child: OutlinedButton.icon(
-                  onPressed: c.connected ? c.restorePorts : null,
-                  icon: const Icon(Icons.settings_backup_restore, size: 16),
-                  label: Text(tr(c.portBackup.isEmpty ? 'Restore Ports' : 'Restore Ports (${c.portBackup.length})')),
-                ),
-              ),
-            ],
+          // counts on the left, buttons on the right; the buttons go below on narrow windows
+          LayoutBuilder(
+            builder: (context, box) {
+              final stats = Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 0,
+                runSpacing: 6,
+                children: [
+                  Text(
+                    '$passed / $total',
+                    style: monoStyle.copyWith(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      color: passed == total ? AppColors.ok : AppColors.text,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Muted('passed'),
+                  const SizedBox(width: 16),
+                  StatusChip(verdict, tone),
+                  if (failed > 0) ...[const SizedBox(width: 8), StatusChip('$failed failed', Tone.err)],
+                  if (total - passed - failed > 0) ...[
+                    const SizedBox(width: 8),
+                    StatusChip('${total - passed - failed} open', Tone.muted),
+                  ],
+                ],
+              );
+              final buttons = Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                runSpacing: 8,
+                children: [
+                  // one button walks through the board: the next port without a result
+                  if (next != null)
+                    FilledButton.icon(
+                      onPressed: c.connected && c.activeTest == null && c.job == null ? onTestNext : null,
+                      icon: const Icon(Icons.play_arrow, size: 18),
+                      label: Text('${tr('Test next')}: ${next!.connector} ${next!.function}'),
+                    )
+                  else if (c.activeTest == null)
+                    StatusChip('All ports tested', Tone.ok),
+                  const SizedBox(width: 10),
+                  OutlinedButton.icon(
+                    onPressed: c.resetTests,
+                    icon: const Icon(Icons.restart_alt, size: 16),
+                    label: Text(tr('Reset Results')),
+                  ),
+                  const SizedBox(width: 10),
+                  Tooltip(
+                    message: tr('Put back the port parameters changed by the tests (reboots the board)'),
+                    child: OutlinedButton.icon(
+                      onPressed: c.connected ? c.restorePorts : null,
+                      icon: const Icon(Icons.settings_backup_restore, size: 16),
+                      label: Text(
+                        tr(c.portBackup.isEmpty ? 'Restore Ports' : 'Restore Ports (${c.portBackup.length})'),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+              if (box.maxWidth < 1150) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [stats, const SizedBox(height: 10), buttons],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: stats),
+                  buttons,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           ClipRRect(
@@ -342,10 +463,27 @@ class _TestRow extends StatelessWidget {
               ),
             ],
           ),
-          if (state.detail.isNotEmpty)
+          if (state.detail.isNotEmpty || state.decidedAt != null)
             Padding(
               padding: const EdgeInsets.only(top: 2, right: 8),
-              child: Text(state.detail, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(tr(state.detail), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                  ),
+                  // when the result was decided and whether a person set it, as the report shows it
+                  if (state.decidedAt != null) ...[
+                    if (state.byOperator) ...[
+                      const Icon(Icons.person_outline, size: 13, color: AppColors.muted),
+                      const SizedBox(width: 3),
+                    ],
+                    Text(
+                      '${two(state.decidedAt!.hour)}:${two(state.decidedAt!.minute)}:${two(state.decidedAt!.second)}',
+                      style: monoStyle.copyWith(fontSize: 11.5, color: AppColors.muted),
+                    ),
+                  ],
+                ],
+              ),
             ),
         ],
       ),
@@ -469,6 +607,33 @@ class _ReportCard extends StatelessWidget {
             'serial ports, onboard hardware, errors and the session log. Keep the board still while it records.',
           ),
           const SizedBox(height: 12),
+          // what the report will say, before it is written
+          () {
+            final total = portTests.length;
+            final failed = c.testsFailed;
+            final open = total - c.testsPassed - failed;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Muted('Result', size: 12.5),
+                    const SizedBox(width: 10),
+                    StatusChip(
+                      failed > 0 ? 'FAIL' : (open > 0 ? 'INCOMPLETE' : 'PASS'),
+                      failed > 0 ? Tone.err : (open > 0 ? Tone.warn : Tone.ok),
+                    ),
+                    const Spacer(),
+                    Muted('${c.testsPassed} / $total', size: 12.5),
+                  ],
+                ),
+                if (open > 0)
+                  Note('$open ${tr('port(s) not tested; they appear as NOT TESTED in the report.')}', tone: Tone.warn),
+                if (c.target == null) const Note('No board connected: the report will have no board data.'),
+                const SizedBox(height: 10),
+              ],
+            );
+          }(),
           FilledButton.icon(
             onPressed: c.reportBusy ? null : () => _create(context),
             icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
@@ -520,6 +685,12 @@ class _ReportDialog extends StatefulWidget {
 }
 
 class _ReportDialogState extends State<_ReportDialog> {
+  // async work (file dialogs, downloads, the vehicle) can finish after the page was left
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   late final TextEditingController _name = TextEditingController(text: widget.operator);
   final TextEditingController _boardId = TextEditingController();
   final TextEditingController _notes = TextEditingController();

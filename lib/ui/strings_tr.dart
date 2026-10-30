@@ -1163,4 +1163,43 @@ const Map<String, String> trStrings = {
   'Scan stopped': 'Tarama durduruldu',
   'No network connection found on this computer': 'Bu bilgisayarda ağ bağlantısı bulunamadı',
   'Enter the address and the user name': 'Adresi ve kullanıcı adını girin',
+  'Device information': 'Cihaz bilgisi',
+  'Read again': 'Yeniden oku',
+  'Reading…': 'Okunuyor…',
+  'No information yet': 'Henüz bilgi yok',
+  'Host name': 'Host adı',
+  'Model': 'Model',
+  'Kernel': 'Çekirdek',
+  'CPU temperature': 'CPU sıcaklığı',
+  'Disk (/)': 'Disk (/)',
+  'IP addresses': 'IP adresleri',
+  'Device to connect to': 'Bağlanılacak cihaz',
+  'External Devices': 'Harici Cihazlar',
+  'Sensors & EKF': 'Sensörler ve EKF',
+  'Ethernet, serial ports and the OSD layout of the board': 'Kartın Ethernet, seri port ve OSD ayarları',
+  'ESC protocol, motor range and the initial tune': 'ESC protokolü, motor aralığı ve ilk ayar',
+  'Which sensors the vehicle uses and where the EKF takes position, speed, height and heading from':
+      'Aracın hangi sensörleri kullandığı ve EKF\'nin konum, hız, yükseklik ve yönü nereden aldığı',
+  'Connect a vehicle to set up its motors and ESCs': 'Motorları ve ESC\'leri ayarlamak için bir araç bağlayın',
+  'Send test': 'Test gönder',
+  '25 % for 2 s: a motor through the motor test, any other output as PWM':
+      '2 sn boyunca %25: motor çıkışı motor testiyle, diğer çıkışlar PWM olarak',
+  'Tick "Propellers are removed" in Motor test first':
+      'Önce Motor testi kartında "Pervaneler çıkarıldı" kutusunu işaretleyin',
+  'Reboot now': 'Şimdi yeniden başlat',
+  'The connection was lost during the calibration; reconnect and start it again':
+      'Kalibrasyon sırasında bağlantı koptu; yeniden bağlanıp tekrar başlatın',
+  'Accelerometer, compass, radio, level, gyro and barometer calibration, step by step':
+      'İvmeölçer, pusula, radyo, seviye, jiroskop ve barometre kalibrasyonu, adım adım',
+  'Board test port by port, the pinouts and the PDF test report':
+      'Port port kart testi, pin dizilimleri ve PDF test raporu',
+  'Test next': 'Sıradaki testi yap',
+  'All ports tested': 'Tüm portlar test edildi',
+  'To do': 'Yapılacak',
+  'Passed': 'Geçti',
+  'Nothing in this list': 'Bu listede bir şey yok',
+  'Result': 'Sonuç',
+  'port(s) not tested; they appear as NOT TESTED in the report.':
+      'port test edilmedi; raporda TEST EDİLMEDİ olarak görünür.',
+  'No board connected: the report will have no board data.': 'Bağlı kart yok: raporda kart bilgisi olmayacak.',
 };
